@@ -46,6 +46,7 @@ const btnSpinner     = scanBtn.querySelector('.btn-spinner');
 const domainSelect   = document.getElementById('domainSelect');
 const minProfitInput = document.getElementById('minProfitInput');
 const minHeartsInput = document.getElementById('minHeartsInput');
+const maxAgeSelect   = document.getElementById('maxAgeSelect');
 const pagesSelect    = document.getElementById('pagesSelect');
 const categoryChips  = document.getElementById('categoryChips');
 const statsBar       = document.getElementById('statsBar');
@@ -124,6 +125,7 @@ function setLoading(on) {
   domainSelect.disabled = on;
   minProfitInput.disabled = on;
   minHeartsInput.disabled = on;
+  maxAgeSelect.disabled = on;
   pagesSelect.disabled = on;
   categoryChips.style.pointerEvents = on ? 'none' : '';
   categoryChips.style.opacity = on ? '0.5' : '';
@@ -174,6 +176,12 @@ function renderCard(item, currency) {
     ? `<span class="badge badge-hearts"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>${item.hearts}</span>`
     : '';
 
+  // Freshness bar & "NEW" badge (based on item ID rank within batch)
+  const f = item.freshness ?? 0; // 0–100
+  const freshnessLabel = f >= 75 ? 'Just listed' : f >= 50 ? 'Listed recently' : f >= 25 ? 'Listed a while ago' : 'Older listing';
+  const freshnessColor = f >= 75 ? 'var(--accent)' : f >= 50 ? 'var(--accent2)' : f >= 25 ? '#f0b429' : 'var(--muted)';
+  const newBadge = item.isNew ? `<div class="new-badge">NEW</div>` : '';
+
   const profitStr  = item.estimatedProfit != null ? fmt(item.estimatedProfit, currency) : '';
   const compLine   = item.groupMean
     ? `<div class="card-comp">vs ${item.groupSize} similar · mean ${fmt(item.groupMean, currency)}</div>`
@@ -184,10 +192,15 @@ function renderCard(item, currency) {
       <div class="card-img-wrap">
         ${imgHtml}
         <div class="discount-badge">-${item.discount}% vs similar</div>
+        ${newBadge}
       </div>
       <div class="card-body">
         <div class="card-title">${escHtml(item.title)}</div>
         <div class="card-meta">${brandBadge}${sizeBadge}${condBadge}${heartsBadge}</div>
+        <div class="freshness-bar-wrap" title="${freshnessLabel}">
+          <div class="freshness-bar" style="width:${f}%;background:${freshnessColor}"></div>
+        </div>
+        <div class="freshness-label" style="color:${freshnessColor}">${freshnessLabel}</div>
         <div class="card-price-row">
           <span class="card-price">${fmt(item.price, currency)}</span>
           <span class="card-was">mean ${fmt(item.groupMean ?? 0, currency)}</span>
@@ -223,7 +236,7 @@ function safeUrl(url) {
 /* ── Scan ─────────────────────────────────────────────────────────────── */
 let abortScan = false;
 
-async function scanCategory(cat, domain, minProfit, minHearts, pages) {
+async function scanCategory(cat, domain, minProfit, minHearts, maxAgeDays, pages) {
   const chip = document.getElementById('chip-' + cat.id);
   if (chip) chip.classList.add('scanning');
 
@@ -232,6 +245,7 @@ async function scanCategory(cat, domain, minProfit, minHearts, pages) {
     domain,
     minProfit,
     minHearts,
+    maxAgeDays,
     pages,
     sort: 'relevance',
   });
@@ -254,6 +268,7 @@ scanBtn.addEventListener('click', async () => {
   const domain     = domainSelect.value;
   const minProfit   = parseFloat(minProfitInput.value) || 8;
   const minHearts   = parseInt(minHeartsInput.value)   || 0;
+  const maxAgeDays  = parseFloat(maxAgeSelect.value)   || 0;
   const pages       = pagesSelect.value;
 
   abortScan = false;
@@ -277,7 +292,7 @@ scanBtn.addEventListener('click', async () => {
   const seenIds = new Set();
 
   function flushCards(currency) {
-    allDeals.sort((a, b) => (b.estimatedProfit ?? 0) - (a.estimatedProfit ?? 0));
+    allDeals.sort((a, b) => (b.hotScore ?? 0) - (a.hotScore ?? 0));
     resultsGrid.innerHTML = allDeals
       .map(item => renderCard(item, currency))
       .join('');
@@ -286,7 +301,7 @@ scanBtn.addEventListener('click', async () => {
   for (const cat of toScan) {
     if (abortScan) break;
     try {
-      const data = await scanCategory(cat, domain, minProfit, minHearts, pages);
+      const data = await scanCategory(cat, domain, minProfit, minHearts, maxAgeDays, pages);
       defaultCurrency = data.currency || defaultCurrency;
       totalScanned += data.totalFetched || 0;
       doneCount++;
@@ -305,7 +320,7 @@ scanBtn.addEventListener('click', async () => {
       statDeals.textContent      = allDeals.length.toLocaleString();
 
       if (allDeals.length > 0) {
-        const best = allDeals.reduce((a, b) => (b.estimatedProfit ?? 0) > (a.estimatedProfit ?? 0) ? b : a);
+        const best = allDeals.reduce((a, b) => (b.hotScore ?? 0) > (a.hotScore ?? 0) ? b : a);
         statBest.textContent = best.estimatedProfit != null
           ? `~${fmt(best.estimatedProfit, defaultCurrency)} profit ♥${best.hearts ?? 0}`
           : `-${best.discount}% off`;

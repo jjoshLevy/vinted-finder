@@ -489,6 +489,41 @@ output {
 }
 .profit-pill svg { width: 13px; height: 13px; flex-shrink: 0; }
 
+/* ─── Freshness bar ───────────────────────────────────────────────────── */
+.freshness-bar-wrap {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 6px 0 2px;
+  overflow: hidden;
+}
+.freshness-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width .3s ease;
+}
+.freshness-label {
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  margin-bottom: 4px;
+}
+
+/* ─── "NEW" badge on card image ──────────────────────────────────────── */
+.new-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: .65rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+
 /* ─── Footer ─────────────────────────────────────────────────────────── */
 footer {
   border-top: 1px solid var(--border);

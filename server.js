@@ -193,6 +193,7 @@ app.get('/api/search', async (req, res) => {
     domain     = 'com',
     minProfit  = '8',
     minHearts  = '3',
+    maxAgeDays = '0',   // 0 = no limit
     pages      = '2',
     sort       = 'relevance',
   } = req.query;
@@ -256,17 +257,31 @@ app.get('/api/search', async (req, res) => {
 
     const minProfitVal  = Math.max(parseFloat(minProfit) || 8, 0);
     const minHeartsVal  = Math.max(parseInt(minHearts)   || 0, 0);
+    const maxAgeDaysVal = Math.max(parseFloat(maxAgeDays) || 0, 0);
 
     // ── Similarity-based comparison ──────────────────────────────────────
-    // Use ALL fetched items as the price pool (more data = more accurate mean),
-    // but only surface items that meet BOTH the hearts threshold AND profit threshold.
     const { annotated } = buildComparisonGroups(withPrices);
+
+    // Recency: use item ID as a sequential proxy (higher ID = newer listing)
+    const ids   = annotated.map(i => Number(i.id));
+    const minId = Math.min(...ids);
+    const maxId = Math.max(...ids);
+    const idRange = maxId - minId || 1;
+
+    // If maxAgeDays is set, estimate a minimum ID cutoff.
+    // Vinted issues roughly 500k–1M new item IDs per day across the platform.
+    // We use 700k/day as a conservative estimate for the cutoff.
+    const ID_PER_DAY = 700_000;
+    const minIdCutoff = maxAgeDaysVal > 0
+      ? maxId - Math.round(maxAgeDaysVal * ID_PER_DAY)
+      : 0;
 
     const underpriced = annotated
       .filter(item => {
         if (item._groupMean == null) return false;
         const hearts = item.favourite_count ?? item.favourites_count ?? 0;
-        if (hearts < minHeartsVal) return false;          // ← hearts gate
+        if (hearts < minHeartsVal) return false;
+        if (maxAgeDaysVal > 0 && Number(item.id) < minIdCutoff) return false;  // age gate
         const buyCost = totalBuyCost(item._price);
         return (item._groupMean - buyCost) >= minProfitVal;
       })
@@ -274,9 +289,16 @@ app.get('/api/search', async (req, res) => {
         const buyCost = totalBuyCost(item._price);
         const estimatedProfit = Math.round((item._groupMean - buyCost) * 100) / 100;
         const discount = Math.round(((item._groupMean - item._price) / item._groupMean) * 100);
-        return { ...item, _estimatedProfit: estimatedProfit, _discount: discount };
+        const hearts   = item.favourite_count ?? item.favourites_count ?? 0;
+        // Freshness: 0 (oldest in batch) → 1 (newest in batch)
+        const freshness = (Number(item.id) - minId) / idRange;
+        // Composite hotness score: profit weighted by hearts & freshness
+        const hotScore  = estimatedProfit * Math.pow(1 + hearts, 0.4) * (0.35 + 0.65 * freshness);
+        // Relative age label within this batch
+        const isNew     = freshness >= 0.75;
+        return { ...item, _estimatedProfit: estimatedProfit, _discount: discount, _freshness: freshness, _hotScore: hotScore, _isNew: isNew };
       })
-      .sort((a, b) => b._estimatedProfit - a._estimatedProfit);
+      .sort((a, b) => b._hotScore - a._hotScore);  // best overall value first
 
     // Global stats
     const prices   = withPrices.map(i => i._price);
@@ -292,6 +314,9 @@ app.get('/api/search', async (req, res) => {
       estimatedProfit: item._estimatedProfit,
       buyCost:         Math.round(totalBuyCost(item._price) * 100) / 100,
       hearts:          item.favourite_count ?? item.favourites_count ?? 0,
+      freshness:       Math.round(item._freshness * 100),  // 0-100
+      isNew:           item._isNew,
+      hotScore:        Math.round(item._hotScore * 10) / 10,
       image:           item.photos?.[0]?.url ?? item.photo?.url ?? null,
       url:             item.url ?? `${baseUrl}/items/${item.id}`,
       brand:           item.brand_title ?? '',
