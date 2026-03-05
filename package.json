@@ -11,6 +11,9 @@
     "axios": "^1.6.0",
     "axios-cookiejar-support": "^4.0.7",
     "express": "^4.18.2",
+    "playwright": "^1.58.2",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "tough-cookie": "^4.1.3"
   }
 }

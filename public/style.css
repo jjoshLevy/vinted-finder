@@ -246,6 +246,64 @@ select {
 }
 select:focus { border-color: var(--accent2); }
 
+/* ─── Session cookie section ─────────────────────────────────────────── */
+.cookie-section {
+  margin-top: 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: .6rem 1rem;
+}
+.cookie-section summary {
+  cursor: pointer;
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--muted);
+  user-select: none;
+  list-style: none;
+}
+.cookie-section summary::-webkit-details-marker { display: none; }
+.cookie-hint {
+  font-weight: 400;
+  font-style: italic;
+  margin-left: .4em;
+}
+.cookie-body {
+  margin-top: .75rem;
+}
+.cookie-instructions {
+  font-size: .78rem;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: .6rem;
+}
+.cookie-instructions code {
+  background: var(--surface2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: .85em;
+}
+.cookie-instructions kbd {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: .82em;
+}
+#sessionCookieInput {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: .55rem .75rem;
+  font-size: .85rem;
+  font-family: monospace;
+  outline: none;
+  transition: border-color .2s;
+}
+#sessionCookieInput:focus { border-color: var(--accent2); }
+
 .slider-wrap {
   display: flex;
   align-items: center;

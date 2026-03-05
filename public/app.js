@@ -176,10 +176,21 @@ function renderCard(item, currency) {
     ? `<span class="badge badge-hearts"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>${item.hearts}</span>`
     : '';
 
-  // Freshness bar & "NEW" badge (based on item ID rank within batch)
-  const f = item.freshness ?? 0; // 0–100
-  const freshnessLabel = f >= 75 ? 'Just listed' : f >= 50 ? 'Listed recently' : f >= 25 ? 'Listed a while ago' : 'Older listing';
-  const freshnessColor = f >= 75 ? 'var(--accent)' : f >= 50 ? 'var(--accent2)' : f >= 25 ? '#f0b429' : 'var(--muted)';
+  // Freshness bar & "NEW" badge — based on absolute estimated age
+  const f        = item.freshness ?? 0;       // 0-100 (100 = brand new, 0 = 30+ days old)
+  const ageDays  = item.ageDays   ?? 999;
+
+  let freshnessLabel;
+  if (ageDays < 1) {
+    const hours = Math.round(ageDays * 24);
+    freshnessLabel = hours <= 1 ? 'Just listed' : `~${hours} hours ago`;
+  } else if (ageDays < 2) {
+    freshnessLabel = '~1 day ago';
+  } else {
+    freshnessLabel = `~${Math.round(ageDays)} days ago`;
+  }
+
+  const freshnessColor = ageDays < 1 ? 'var(--accent)' : ageDays < 3 ? 'var(--accent2)' : ageDays < 7 ? '#f0b429' : 'var(--muted)';
   const newBadge = item.isNew ? `<div class="new-badge">NEW</div>` : '';
 
   const profitStr  = item.estimatedProfit != null ? fmt(item.estimatedProfit, currency) : '';
@@ -255,7 +266,12 @@ async function scanCategory(cat, domain, minProfit, minHearts, maxAgeDays, pages
 
   if (chip) { chip.classList.remove('scanning'); chip.classList.add('done'); }
 
-  if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(data.message || data.error || `Error ${res.status}`);
+    err.status = res.status;
+    err.code   = data.error;
+    throw err;
+  }
   return data;
 }
 
@@ -270,6 +286,19 @@ scanBtn.addEventListener('click', async () => {
   const minHearts   = parseInt(minHeartsInput.value)   || 0;
   const maxAgeDays  = parseFloat(maxAgeSelect.value)   || 0;
   const pages       = pagesSelect.value;
+
+  // Check if browser session is ready before starting
+  try {
+    const status = await fetch(`/api/status?domain=${domain}`).then(r => r.json());
+    if (!status.ready) {
+      if (status.status === 'verifying') {
+        showError('⚠️ Cloudflare verification needed — a browser window has opened. Please click "Verify you are human" in it, then click Scan again.');
+      } else {
+        showError('Browser session not ready yet — please wait a moment and try again.');
+      }
+      return;
+    }
+  } catch (_) { /* if status check fails, proceed anyway */ }
 
   abortScan = false;
   clearUI();
@@ -330,8 +359,7 @@ scanBtn.addEventListener('click', async () => {
       if (doneCount === 1) resultsGrid.innerHTML = '';
       flushCards(defaultCurrency);
 
-    } catch (err) {  
-      // Non-fatal: log chip as done anyway, continue scanning
+    } catch (err) {
       const chip = document.getElementById('chip-' + cat.id);
       if (chip) { chip.classList.remove('scanning'); chip.classList.add('done'); }
       doneCount++;

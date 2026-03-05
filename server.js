@@ -1,8 +1,9 @@
 const express = require('express');
-const axios = require('axios');
-const { wrapper } = require('axios-cookiejar-support');
-const { CookieJar } = require('tough-cookie');
+const { chromium } = require('playwright');
+const { spawn }    = require('child_process');
+const http         = require('http');
 const path = require('path');
+const fs   = require('fs');
 
 const app = express();
 const PORT = 3000;
@@ -20,40 +21,122 @@ const VINTED_DOMAINS = {
   it:  'https://www.vinted.it',
 };
 
-// Cookie jar per domain to maintain Vinted sessions
-const jarCache = {};
-const clientCache = {};
-const cookieExpiry = {};
-const COOKIE_TTL = 15 * 60 * 1000; // 15 minutes
+// -----------------------------------------------------------------------
+// Chrome CDP approach — spawn real Chrome independently, connect via CDP.
+// Chrome runs WITHOUT --enable-automation, so navigator.webdriver = false
+// and Cloudflare cannot detect automation.
+// -----------------------------------------------------------------------
+const DEBUG_PORT  = 9222;
+const PROFILE_DIR = path.join(__dirname, '.cf-profile');
 
-function getClient(domain) {
-  if (!jarCache[domain]) {
-    jarCache[domain] = new CookieJar();
-    clientCache[domain] = wrapper(axios.create({
-      jar: jarCache[domain],
-      withCredentials: true,
-    }));
-  }
-  return clientCache[domain];
+let _cdpBrowser = null;   // Playwright CDP connection
+const _pages = {};        // cached page per domain
+let _launchLock = null;   // serialise concurrent calls
+
+function findChrome() {
+  const candidates = [
+    process.env.CHROME_PATH,
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+  ].filter(Boolean);
+  return candidates.find(p => fs.existsSync(p)) || null;
 }
 
-async function ensureSession(baseUrl, domain) {
-  const now = Date.now();
-  if (cookieExpiry[domain] && now < cookieExpiry[domain]) return;
+function cleanLocks(dir) {
+  for (const f of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) {
+    try { fs.rmSync(path.join(dir, f)); } catch (_) {}
+  }
+}
 
-  const client = getClient(domain);
-  try {
-    await client.get(baseUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-      timeout: 10000,
+function isChromeUp() {
+  return new Promise(resolve => {
+    const req = http.get(`http://127.0.0.1:${DEBUG_PORT}/json/version`, res => {
+      res.resume();
+      resolve(res.statusCode === 200);
     });
-    cookieExpiry[domain] = Date.now() + COOKIE_TTL;
-  } catch (e) {
-    // Best-effort – proceed even if homepage fails
+    req.on('error', () => resolve(false));
+    req.setTimeout(800, () => { req.destroy(); resolve(false); });
+  });
+}
+
+async function ensureChrome() {
+  if (await isChromeUp()) return;
+
+  const chromePath = findChrome();
+  if (!chromePath) throw new Error('Chrome/Edge not found. Install Google Chrome or set CHROME_PATH env var.');
+
+  fs.mkdirSync(PROFILE_DIR, { recursive: true });
+  cleanLocks(PROFILE_DIR);
+
+  console.log(`Launching Chrome: ${chromePath}`);
+  spawn(chromePath, [
+    `--remote-debugging-port=${DEBUG_PORT}`,
+    `--user-data-dir=${PROFILE_DIR}`,
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-extensions',
+  ], { detached: true, stdio: 'ignore' }).unref();
+
+  // Wait up to 15 s for Chrome to be ready
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 500));
+    if (await isChromeUp()) { console.log('Chrome ready on port', DEBUG_PORT); return; }
+  }
+  throw new Error('Chrome did not start in time.');
+}
+
+async function getVintedPage(domain, baseUrl) {
+  if (_pages[domain] && !_pages[domain].isClosed()) return _pages[domain];
+
+  // Serialise to prevent two simultaneous Chrome launches
+  if (_launchLock) {
+    await _launchLock;
+    if (_pages[domain] && !_pages[domain].isClosed()) return _pages[domain];
+  }
+
+  let resolveLock;
+  _launchLock = new Promise(r => { resolveLock = r; });
+
+  try {
+    await ensureChrome();
+
+    if (!_cdpBrowser || !_cdpBrowser.isConnected()) {
+      console.log('Connecting to Chrome via CDP...');
+      _cdpBrowser = await chromium.connectOverCDP(`http://127.0.0.1:${DEBUG_PORT}`);
+      _cdpBrowser.on('disconnected', () => {
+        _cdpBrowser = null;
+        Object.keys(_pages).forEach(k => delete _pages[k]);
+        console.log('Chrome disconnected — will reconnect on next request.');
+      });
+    }
+
+    // Reuse the default browser context (it has the persistent cookies)
+    const ctx = _cdpBrowser.contexts()[0] || await _cdpBrowser.newContext();
+    const page = await ctx.newPage();
+    await page.bringToFront();
+
+    console.log(`[${domain}] Navigating to ${baseUrl}/catalog ...`);
+    await page.goto(baseUrl + '/catalog', { waitUntil: 'load', timeout: 30000 }).catch(() => {});
+
+    // Wait for any Cloudflare challenge to resolve (usually auto-passes with real Chrome)
+    console.log(`[${domain}] Waiting for Cloudflare...`);
+    await page.waitForFunction(
+      () => !document.title.includes('Just a moment') &&
+            !document.title.includes('Please wait') &&
+            document.title.length > 0,
+      { timeout: 30000 }
+    ).catch(() => {});
+
+    const title = await page.title().catch(() => '?');
+    console.log(`[${domain}] Ready: "${title}"`);
+
+    _pages[domain] = page;
+    return page;
+  } finally {
+    resolveLock();
+    _launchLock = null;
   }
 }
 
@@ -97,7 +180,7 @@ function titleKeywords(title, brand) {
  *   3. Fall back to brand only
  * Returns: { annotated, groups }
  */
-const MIN_GROUP = 4;
+const MIN_GROUP = 2;
 
 function buildComparisonGroups(items) {
   const annotated = items.map(item => {
@@ -178,6 +261,21 @@ function totalBuyCost(price) {
 // Serve static frontend
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Status endpoint so the frontend can check if the session is ready
+app.get('/api/status', (req, res) => {
+  const domain = req.query.domain || 'uk';
+  const page   = _pages[domain];
+  if (!page || page.isClosed()) return res.json({ ready: false, status: 'not_started' });
+  page.title().then(title => {
+    const blocked = title.includes('Just a moment') || title.includes('Please wait');
+    if (blocked) {
+      res.json({ ready: false, status: 'verifying', message: 'Cloudflare check in progress — please wait for the browser window to finish loading.' });
+    } else {
+      res.json({ ready: true, status: 'ready' });
+    }
+  }).catch(() => res.json({ ready: false, status: 'unknown' }));
+});
+
 // -----------------------------------------------------------------------
 // GET /api/search
 // query params:
@@ -196,6 +294,7 @@ app.get('/api/search', async (req, res) => {
     maxAgeDays = '0',   // 0 = no limit
     pages      = '2',
     sort       = 'relevance',
+    sessionCookie = '',  // optional manual cookie bypass
   } = req.query;
 
   if (!q || q.trim() === '') {
@@ -203,10 +302,9 @@ app.get('/api/search', async (req, res) => {
   }
 
   const baseUrl = VINTED_DOMAINS[domain] || VINTED_DOMAINS.com;
-  const client = getClient(domain);
 
   try {
-    await ensureSession(baseUrl, domain);
+    const vintedPage = await getVintedPage(domain, baseUrl);
 
     const ORDER_MAP = {
       relevance: 'relevance',
@@ -216,32 +314,29 @@ app.get('/api/search', async (req, res) => {
     };
 
     const orderBy = ORDER_MAP[sort] || 'relevance';
-    const maxPages = Math.min(parseInt(pages) || 2, 5);
+    const maxPages = Math.min(parseInt(pages) || 2, 10);
 
     let allItems = [];
 
-    for (let page = 1; page <= maxPages; page++) {
-      const response = await client.get(`${baseUrl}/api/v2/catalog/items`, {
-        params: {
-          search_text: q.trim(),
-          per_page: 96,
-          page,
-          order: orderBy,
-        },
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-          'Accept': 'application/json, text/plain, */*',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Referer': baseUrl,
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        timeout: 12000,
-      });
+    for (let pg = 1; pg <= maxPages; pg++) {
+      const qs = new URLSearchParams({
+        search_text: q.trim(),
+        per_page: '96',
+        page: String(pg),
+        order: orderBy,
+      }).toString();
 
-      const items = response.data?.items || [];
+      const data = await vintedPage.evaluate(async ([apiUrl, queryString]) => {
+        const r = await fetch(`${apiUrl}?${queryString}`, {
+          headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          credentials: 'include',
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      }, [`${baseUrl}/api/v2/catalog/items`, qs]);
+
+      const items = data?.items || [];
       allItems = allItems.concat(items);
-
-      // Stop early if fewer items than requested (last page)
       if (items.length < 96) break;
     }
 
@@ -290,13 +385,14 @@ app.get('/api/search', async (req, res) => {
         const estimatedProfit = Math.round((item._groupMean - buyCost) * 100) / 100;
         const discount = Math.round(((item._groupMean - item._price) / item._groupMean) * 100);
         const hearts   = item.favourite_count ?? item.favourites_count ?? 0;
-        // Freshness: 0 (oldest in batch) → 1 (newest in batch)
-        const freshness = (Number(item.id) - minId) / idRange;
+        // Absolute age: how many days old this item is estimated to be
+        const ageDays   = (maxId - Number(item.id)) / ID_PER_DAY;
+        // Freshness 0-1: 0 days old = 1.0, 30+ days old = 0.0 (for hotScore & bar)
+        const freshness = Math.max(0, 1 - ageDays / 30);
         // Composite hotness score: profit weighted by hearts & freshness
         const hotScore  = estimatedProfit * Math.pow(1 + hearts, 0.4) * (0.35 + 0.65 * freshness);
-        // Relative age label within this batch
-        const isNew     = freshness >= 0.75;
-        return { ...item, _estimatedProfit: estimatedProfit, _discount: discount, _freshness: freshness, _hotScore: hotScore, _isNew: isNew };
+        const isNew     = ageDays < 1;
+        return { ...item, _estimatedProfit: estimatedProfit, _discount: discount, _freshness: freshness, _ageDays: ageDays, _hotScore: hotScore, _isNew: isNew };
       })
       .sort((a, b) => b._hotScore - a._hotScore);  // best overall value first
 
@@ -314,7 +410,8 @@ app.get('/api/search', async (req, res) => {
       estimatedProfit: item._estimatedProfit,
       buyCost:         Math.round(totalBuyCost(item._price) * 100) / 100,
       hearts:          item.favourite_count ?? item.favourites_count ?? 0,
-      freshness:       Math.round(item._freshness * 100),  // 0-100
+      freshness:       Math.round(item._freshness * 100),  // 0-100, absolute (0=30+days, 100=brand new)
+      ageDays:         Math.round(item._ageDays * 10) / 10, // estimated days since listed
       isNew:           item._isNew,
       hotScore:        Math.round(item._hotScore * 10) / 10,
       image:           item.photos?.[0]?.url ?? item.photo?.url ?? null,
@@ -334,17 +431,16 @@ app.get('/api/search', async (req, res) => {
       currency:     withPrices[0]?.price?.currency_code ?? 'EUR',
     });
   } catch (err) {
-    const status = err.response?.status;
-    if (status === 401 || status === 403) {
-      // Invalidate cookie cache so next request retries
-      cookieExpiry[domain] = 0;
-      return res.status(503).json({ error: 'Vinted session expired – please retry in a few seconds.' });
-    }
-    console.error('Vinted API error:', err.message);
-    res.status(502).json({ error: `Failed to reach Vinted: ${err.message}` });
+    console.error(`[${domain}] Error:`, err.message);
+    // If the page crashed, clear it so next request gets a fresh one
+    delete _pages[domain];
+    res.status(502).json({ error: 'api_error', message: `Failed to reach Vinted: ${err.message}` });
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`\n✅  Vinted Finder running at http://localhost:${PORT}\n`);
+  console.log('Pre-warming Chrome session...');
+  console.log('A Chrome window will open — Cloudflare should pass automatically.\n');
+  getVintedPage('uk', VINTED_DOMAINS.uk).catch(e => console.error('Pre-warm failed:', e.message));
 });
