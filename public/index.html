@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vinted Deal Finder</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+        <span>Vinted<strong>Deals</strong></span>
+      </div>
+      <p class="tagline">Find underpriced items before anyone else</p>
+    </div>
+  </header>
+
+  <main>
+    <!-- Scan card -->
+    <section class="scan-card">
+      <div class="scan-header">
+        <div class="scan-info">
+          <div class="scan-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Auto Deal Scanner
+          </div>
+          <p class="scan-desc">Scans <strong>30 categories</strong> across footwear, luxury, streetwear, gaming, tech &amp; collectibles. Only shows items where the buy price + fees still leaves a real profit.</p>
+        </div>
+        <button type="button" class="btn-scan" id="scanBtn">
+          <span class="btn-text">Scan for Deals</span>
+          <span class="btn-spinner" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+          </span>
+        </button>
+      </div>
+
+      <div class="filters-row">
+        <label class="filter-group">
+          <span>Country</span>
+          <select id="domainSelect">
+            <option value="com">Global (vinted.com)</option>
+            <option value="fr">France</option>
+            <option value="uk">UK</option>
+            <option value="de">Germany</option>
+            <option value="es">Spain</option>
+            <option value="nl">Netherlands</option>
+            <option value="pl">Poland</option>
+            <option value="be">Belgium</option>
+            <option value="it">Italy</option>
+          </select>
+        </label>
+
+        <label class="filter-group">
+          <span>Min profit after fees</span>
+          <div class="profit-input-wrap">
+            <span class="profit-prefix">€</span>
+            <input type="number" id="minProfitInput" min="1" max="500" value="8" step="1" />
+          </div>
+        </label>
+
+        <label class="filter-group">
+          <span>Min ❤ hearts</span>
+          <div class="profit-input-wrap">
+            <span class="profit-prefix">♥</span>
+            <input type="number" id="minHeartsInput" min="0" max="999" value="3" step="1" />
+          </div>
+        </label>
+
+        <label class="filter-group">
+          <span>Pages per category</span>
+          <select id="pagesSelect">
+            <option value="1" selected>1 page (~96 items)</option>
+            <option value="2">2 pages (~192 items)</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="categoryChips" class="category-chips"></div>
+    </section>
+
+    <!-- Stats bar -->
+    <div id="statsBar" class="stats-bar" hidden>
+      <div class="stat">
+        <span class="stat-label">Items scanned</span>
+        <span class="stat-value" id="statTotal">—</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Categories done</span>
+        <span class="stat-value" id="statCategories">—</span>
+      </div>
+      <div class="stat highlight">
+        <span class="stat-label">Deals found</span>
+        <span class="stat-value" id="statDeals">—</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Best deal</span>
+        <span class="stat-value" id="statBest">—</span>
+      </div>
+    </div>
+
+    <!-- Error banner -->
+    <div id="errorBanner" class="error-banner" hidden></div>
+
+    <!-- Empty state -->
+    <div id="emptyState" class="empty-state" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      <p>No flippable deals found across all categories.</p>
+      <p class="sub">Try lowering the min profit threshold or switching to a different country.</p>
+    </div>
+
+    <!-- Results grid -->
+    <div id="resultsGrid" class="results-grid"></div>
+  </main>
+
+  <footer>
+    <p>Vinted Deals Finder · Prices compared against the median for each search · Not affiliated with Vinted</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
