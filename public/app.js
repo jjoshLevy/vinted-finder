@@ -291,19 +291,6 @@ scanBtn.addEventListener('click', async () => {
   const maxAgeDays  = parseFloat(maxAgeSelect.value)   || 0;
   const pages       = pagesSelect.value;
 
-  // Check if browser session is ready before starting
-  try {
-    const status = await fetch(`/api/status?domain=${domain}`).then(r => r.json());
-    if (!status.ready) {
-      if (status.status === 'verifying') {
-        showError('⚠️ Cloudflare verification needed — a browser window has opened. Please click "Verify you are human" in it, then click Scan again.');
-      } else {
-        showError('Browser session not ready yet — please wait a moment and try again.');
-      }
-      return;
-    }
-  } catch (_) { /* if status check fails, proceed anyway */ }
-
   abortScan = false;
   clearUI();
   setLoading(true);
