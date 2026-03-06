@@ -291,6 +291,7 @@ app.get('/api/search', async (req, res) => {
     domain     = 'com',
     minProfit  = '8',
     minHearts  = '3',
+    maxPrice   = '0',   // 0 = no limit
     maxAgeDays = '0',   // 0 = no limit
     pages      = '2',
     sort       = 'relevance',
@@ -352,6 +353,7 @@ app.get('/api/search', async (req, res) => {
 
     const minProfitVal  = Math.max(parseFloat(minProfit) || 8, 0);
     const minHeartsVal  = Math.max(parseInt(minHearts)   || 0, 0);
+    const maxPriceVal   = Math.max(parseFloat(maxPrice)  || 0, 0);  // 0 = no limit
     const maxAgeDaysVal = Math.max(parseFloat(maxAgeDays) || 0, 0);
 
     // ── Similarity-based comparison ──────────────────────────────────────
@@ -376,6 +378,7 @@ app.get('/api/search', async (req, res) => {
         if (item._groupMean == null) return false;
         const hearts = item.favourite_count ?? item.favourites_count ?? 0;
         if (hearts < minHeartsVal) return false;
+        if (maxPriceVal > 0 && item._price > maxPriceVal) return false;  // max buy price gate
         if (maxAgeDaysVal > 0 && Number(item.id) < minIdCutoff) return false;  // age gate
         const buyCost = totalBuyCost(item._price);
         return (item._groupMean - buyCost) >= minProfitVal;

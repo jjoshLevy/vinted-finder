@@ -46,6 +46,7 @@ const btnSpinner     = scanBtn.querySelector('.btn-spinner');
 const domainSelect   = document.getElementById('domainSelect');
 const minProfitInput = document.getElementById('minProfitInput');
 const minHeartsInput = document.getElementById('minHeartsInput');
+const maxPriceInput  = document.getElementById('maxPriceInput');
 const maxAgeSelect   = document.getElementById('maxAgeSelect');
 const pagesSelect    = document.getElementById('pagesSelect');
 const categoryChips  = document.getElementById('categoryChips');
@@ -125,6 +126,7 @@ function setLoading(on) {
   domainSelect.disabled = on;
   minProfitInput.disabled = on;
   minHeartsInput.disabled = on;
+  maxPriceInput.disabled  = on;
   maxAgeSelect.disabled = on;
   pagesSelect.disabled = on;
   categoryChips.style.pointerEvents = on ? 'none' : '';
@@ -247,7 +249,7 @@ function safeUrl(url) {
 /* ── Scan ─────────────────────────────────────────────────────────────── */
 let abortScan = false;
 
-async function scanCategory(cat, domain, minProfit, minHearts, maxAgeDays, pages) {
+async function scanCategory(cat, domain, minProfit, minHearts, maxPrice, maxAgeDays, pages) {
   const chip = document.getElementById('chip-' + cat.id);
   if (chip) chip.classList.add('scanning');
 
@@ -256,6 +258,7 @@ async function scanCategory(cat, domain, minProfit, minHearts, maxAgeDays, pages
     domain,
     minProfit,
     minHearts,
+    maxPrice,
     maxAgeDays,
     pages,
     sort: 'relevance',
@@ -284,6 +287,7 @@ scanBtn.addEventListener('click', async () => {
   const domain     = domainSelect.value;
   const minProfit   = parseFloat(minProfitInput.value) || 8;
   const minHearts   = parseInt(minHeartsInput.value)   || 0;
+  const maxPrice    = parseFloat(maxPriceInput.value)  || 0;   // 0 = no limit
   const maxAgeDays  = parseFloat(maxAgeSelect.value)   || 0;
   const pages       = pagesSelect.value;
 
@@ -330,7 +334,7 @@ scanBtn.addEventListener('click', async () => {
   for (const cat of toScan) {
     if (abortScan) break;
     try {
-      const data = await scanCategory(cat, domain, minProfit, minHearts, maxAgeDays, pages);
+      const data = await scanCategory(cat, domain, minProfit, minHearts, maxPrice, maxAgeDays, pages);
       defaultCurrency = data.currency || defaultCurrency;
       totalScanned += data.totalFetched || 0;
       doneCount++;
