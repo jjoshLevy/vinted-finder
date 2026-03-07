@@ -629,6 +629,31 @@ output {
   background: linear-gradient(135deg, #00b09b, #96c93d);
   color: #fff !important;
 }
+.badge-hidden {
+  background: linear-gradient(135deg, #8e24aa, #e040fb);
+  color: #fff !important;
+}
+.badge-size-hot {
+  background: linear-gradient(135deg, #0288d1, #26c6da);
+  color: #fff !important;
+}
+.badge-size-ok {
+  background: linear-gradient(135deg, #546e7a, #90a4ae);
+  color: #fff !important;
+}
+
+/* ─── Premium misprice alert bar ─────────────────────────────────────── */
+.misprice-alert {
+  background: linear-gradient(135deg, #4a148c22, #7b1fa222);
+  border: 1px solid #ce93d8;
+  color: #ce93d8;
+  font-size: .7rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 5px;
+  margin: 4px 0 2px;
+  letter-spacing: .02em;
+}
 
 /* ─── Footer ─────────────────────────────────────────────────────────── */
 footer {

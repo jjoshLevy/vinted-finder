@@ -185,6 +185,23 @@ function renderCard(item, currency, rank) {
     ? `<span class="badge badge-brand-mid" title="Good resale brand (score ${item.brandBoost}/10)">★ Brand</span>`
     : '';
 
+  // Hidden brand badge — seller didn't tag the brand in the listing
+  const hiddenBrandBadge = item.hiddenBrand
+    ? `<span class="badge badge-hidden" title="Brand '${escHtml(item.hiddenBrand)}' found in description but not tagged by seller">👁 Hidden: ${escHtml(item.hiddenBrand)}</span>`
+    : '';
+
+  // Premium misprice alert
+  const mispriceBadge = item.isMispricedPremium
+    ? `<div class="misprice-alert">💎 Premium brand at fast-fashion price</div>`
+    : '';
+
+  // Size demand badge
+  const sizeDemandBadge = item.sizeDemand >= 2
+    ? `<span class="badge badge-size-hot" title="Best resale size">📐 Best size</span>`
+    : item.sizeDemand >= 1
+    ? `<span class="badge badge-size-ok" title="Good resale size">📐 Good size</span>`
+    : '';
+
   // Like velocity badge
   const velBadge = item.likeVelocity >= 0.5
     ? `<span class="badge badge-velocity" title="Like velocity: ${item.likeVelocity.toFixed(2)}/min">⚡ ${item.likeVelocity >= 1 ? item.likeVelocity.toFixed(1) + '/min' : 'Rising'}</span>`
@@ -228,7 +245,8 @@ function renderCard(item, currency, rank) {
       </div>
       <div class="card-body">
         <div class="card-title">${escHtml(item.title)}</div>
-        <div class="card-meta">${brandBadge}${sizeBadge}${condBadge}${heartsBadge}${brandBoostBadge}${velBadge}</div>
+        <div class="card-meta">${brandBadge}${sizeBadge}${condBadge}${heartsBadge}${brandBoostBadge}${hiddenBrandBadge}${velBadge}${sizeDemandBadge}</div>
+        ${mispriceBadge}
         <div class="freshness-bar-wrap" title="${freshnessLabel}">
           <div class="freshness-bar" style="width:${f}%;background:${freshnessColor}"></div>
         </div>

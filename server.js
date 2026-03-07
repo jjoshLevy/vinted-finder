@@ -178,6 +178,43 @@ function brandScore(brandName) {
   return BRAND_SCORES[key] ?? 0;
 }
 
+// All brand names as a sorted-by-length list for hidden brand scanning
+// (longest first so 'carhartt wip' matches before 'carhartt')
+const BRAND_NAMES_SORTED = Object.keys(BRAND_SCORES).sort((a, b) => b.length - a.length);
+
+/**
+ * Scan title + description text for any known brand that is NOT already
+ * the item's official brand_title.  Returns the first match or null.
+ */
+function detectHiddenBrand(title, description, officialBrand) {
+  const haystack = ((title || '') + ' ' + (description || '')).toLowerCase();
+  const official = (officialBrand || '').toLowerCase().trim();
+  for (const b of BRAND_NAMES_SORTED) {
+    if (official === b) continue;          // already tagged — not hidden
+    if (BRAND_SCORES[b] < 5) continue;    // only worth flagging mid+ tier
+    // Word-boundary match to avoid false positives (e.g. "nike" in "monkey")
+    const re = new RegExp(`(?:^|[\\s\\-\/,])${b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:$|[\\s\\-\/,])`);
+    if (re.test(haystack)) return b;
+  }
+  return null;
+}
+
+// Size demand map — higher = sells faster / broader audience
+const SIZE_DEMAND = {
+  'm': 2, 'l': 2,
+  'xl': 1, 's': 1,
+  'xxl': 0.5, 'xs': 0.5,
+  // EU numeric — approximate mapping to M/L range
+  '38': 1, '40': 2, '42': 2, '44': 1, '46': 0.5,
+  // US numeric
+  '10': 1, '12': 2, '14': 2,
+};
+
+function sizeDemandScore(sizeTitle) {
+  const key = (sizeTitle || '').toLowerCase().trim();
+  return SIZE_DEMAND[key] ?? 0;
+}
+
 // -----------------------------------------------------------------------
 // Similarity grouping: group items by brand + extracted product model
 // so each item is only compared against truly similar listings.
@@ -435,25 +472,43 @@ app.get('/api/search', async (req, res) => {
         const likeVelocity = ageMinutes > 0.5 ? hearts / ageMinutes : hearts * 2;
 
         // Brand priority boost (0-10 scale, normalised to 0-1 for scoring)
-        const bScore  = brandScore(item.brand_title);
+        const bScore     = brandScore(item.brand_title);
         const brandBoost = bScore / 10;  // 0.0 – 1.0
+
+        // Hidden brand detection: brand mentioned in title/description but not tagged
+        const hiddenBrand = detectHiddenBrand(
+          item.title,
+          item.description ?? item.short_description ?? '',
+          item.brand_title
+        );
+        const hiddenBrandScore = hiddenBrand ? (BRAND_SCORES[hiddenBrand] ?? 0) : 0;
+
+        // Premium misprice: high-demand brand priced at < 50% of group mean
+        const isPremiumBrand     = bScore >= 8 || hiddenBrandScore >= 8;
+        const isMispricedPremium = isPremiumBrand && item._groupMean > 0 && item._price < item._groupMean * 0.5;
+
+        // Size demand (0 = unknown/niche, 2 = best resale size)
+        const szDemand = sizeDemandScore(item.size_title);
 
         // Is it very fresh? < 5 minutes estimated
         const isHot  = ageMinutes < 5;
         const isNew  = ageDays < 1;
 
         // ── Composite hotScore ──────────────────────────────────────────
-        // Base: profit potential
-        // × hearts signal (log-like curve)
-        // × freshness curve
-        // + brand bonus (adds up to 20% on top for top-tier brands)
-        // + velocity surge (high velocity = extra push)
+        // Base: profit potential × hearts × freshness × brand
+        // + velocity surge
+        // + size demand bonus (up to +10%)
+        // + misprice bonus: if a premium brand is grossly underpriced, big push
+        // + hidden brand bonus: seller doesn't know what they have
         const hotScore =
           estimatedProfit
           * Math.pow(1 + hearts, 0.4)
           * (0.3 + 0.7 * freshness)
           * (1 + 0.2 * brandBoost)
-          + Math.min(likeVelocity, 5) * estimatedProfit * 0.1;
+          + Math.min(likeVelocity, 5) * estimatedProfit * 0.1
+          + szDemand * estimatedProfit * 0.05
+          + (isMispricedPremium ? estimatedProfit * 0.5 : 0)
+          + (hiddenBrand ? hiddenBrandScore * estimatedProfit * 0.05 : 0);
 
         return {
           ...item,
@@ -467,6 +522,9 @@ app.get('/api/search', async (req, res) => {
           _isHot: isHot,
           _likeVelocity: likeVelocity,
           _brandBoost: bScore,
+          _hiddenBrand: hiddenBrand,
+          _isMispricedPremium: isMispricedPremium,
+          _sizeDemand: szDemand,
         };
       })
       .sort((a, b) => b._hotScore - a._hotScore);  // best overall value first
@@ -491,8 +549,11 @@ app.get('/api/search', async (req, res) => {
       isNew:           item._isNew,
       isHot:           item._isHot,
       likeVelocity:    Math.round(item._likeVelocity * 100) / 100,
-      brandBoost:      item._brandBoost,  // 0-10
-      hotScore:        Math.round(item._hotScore * 10) / 10,
+      brandBoost:           item._brandBoost,       // 0-10
+      hiddenBrand:          item._hiddenBrand ?? null,
+      isMispricedPremium:   item._isMispricedPremium ?? false,
+      sizeDemand:           item._sizeDemand ?? 0,
+      hotScore:             Math.round(item._hotScore * 10) / 10,
       image:           item.photos?.[0]?.url ?? item.photo?.url ?? null,
       url:             item.url ?? `${baseUrl}/items/${item.id}`,
       brand:           item.brand_title ?? '',
