@@ -165,7 +165,7 @@ function showSkeletons(count = 12) {
 }
 
 /* ── Card renderer ────────────────────────────────────────────────────── */
-function renderCard(item, currency) {
+function renderCard(item, currency, rank) {
   const hasImg = item.image && item.image.trim() !== '';
   const imgHtml = hasImg
     ? `<img src="${escHtml(item.image)}" alt="${escHtml(item.title)}" loading="lazy" />`
@@ -178,45 +178,64 @@ function renderCard(item, currency) {
     ? `<span class="badge badge-hearts"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>${item.hearts}</span>`
     : '';
 
-  // Freshness bar & "NEW" badge — based on absolute estimated age
-  const f        = item.freshness ?? 0;       // 0-100 (100 = brand new, 0 = 30+ days old)
-  const ageDays  = item.ageDays   ?? 999;
+  // Brand boost badge for priority brands
+  const brandBoostBadge = item.brandBoost >= 7
+    ? `<span class="badge badge-brand" title="High-demand brand (score ${item.brandBoost}/10)">🔥 Brand</span>`
+    : item.brandBoost >= 4
+    ? `<span class="badge badge-brand-mid" title="Good resale brand (score ${item.brandBoost}/10)">★ Brand</span>`
+    : '';
+
+  // Like velocity badge
+  const velBadge = item.likeVelocity >= 0.5
+    ? `<span class="badge badge-velocity" title="Like velocity: ${item.likeVelocity.toFixed(2)}/min">⚡ ${item.likeVelocity >= 1 ? item.likeVelocity.toFixed(1) + '/min' : 'Rising'}</span>`
+    : '';
+
+  // Age label — show minutes if < 2 hours
+  const ageDays    = item.ageDays   ?? 999;
+  const ageMinutes = item.ageMinutes ?? (ageDays * 1440);
+  const f          = item.freshness ?? 0;
 
   let freshnessLabel;
-  if (ageDays < 1) {
-    const hours = Math.round(ageDays * 24);
-    freshnessLabel = hours <= 1 ? 'Just listed' : `~${hours} hours ago`;
-  } else if (ageDays < 2) {
-    freshnessLabel = '~1 day ago';
-  } else {
-    freshnessLabel = `~${Math.round(ageDays)} days ago`;
-  }
+  if (ageMinutes < 1)       freshnessLabel = 'Just listed';
+  else if (ageMinutes < 60) freshnessLabel = `~${Math.round(ageMinutes)} min ago`;
+  else if (ageDays < 1)     { const h = Math.round(ageMinutes / 60); freshnessLabel = `~${h} hour${h > 1 ? 's' : ''} ago`; }
+  else if (ageDays < 2)     freshnessLabel = '~1 day ago';
+  else                      freshnessLabel = `~${Math.round(ageDays)} days ago`;
 
-  const freshnessColor = ageDays < 1 ? 'var(--accent)' : ageDays < 3 ? 'var(--accent2)' : ageDays < 7 ? '#f0b429' : 'var(--muted)';
-  const newBadge = item.isNew ? `<div class="new-badge">NEW</div>` : '';
+  const freshnessColor = ageMinutes < 60 ? 'var(--accent)' : ageDays < 3 ? 'var(--accent2)' : ageDays < 7 ? '#f0b429' : 'var(--muted)';
+
+  // Overlay badges
+  const hotBadge = item.isHot  ? `<div class="hot-badge">🔥 HOT</div>` : '';
+  const newBadge = !item.isHot && item.isNew ? `<div class="new-badge">NEW</div>` : '';
+
+  // Rank badge (top 3 get special colours)
+  const rankColors = ['#ffd700', '#c0c0c0', '#cd7f32'];
+  const rankStyle  = rank <= 3 ? `background:${rankColors[rank - 1]};color:#111` : '';
+  const rankBadge  = `<div class="rank-badge" style="${rankStyle}">#${rank}</div>`;
 
   const profitStr  = item.estimatedProfit != null ? fmt(item.estimatedProfit, currency) : '';
   const compLine   = item.groupMean
-    ? `<div class="card-comp">vs ${item.groupSize} similar · mean ${fmt(item.groupMean, currency)}</div>`
+    ? `<div class="card-comp">vs ${item.groupSize} similar · avg ${fmt(item.groupMean, currency)}</div>`
     : '';
 
   return `
     <a class="deal-card" href="${escHtml(item.url)}" target="_blank" rel="noopener noreferrer">
       <div class="card-img-wrap">
         ${imgHtml}
-        <div class="discount-badge">-${item.discount}% vs similar</div>
-        ${newBadge}
+        <div class="discount-badge">-${item.discount}% vs avg</div>
+        ${hotBadge}${newBadge}
+        ${rankBadge}
       </div>
       <div class="card-body">
         <div class="card-title">${escHtml(item.title)}</div>
-        <div class="card-meta">${brandBadge}${sizeBadge}${condBadge}${heartsBadge}</div>
+        <div class="card-meta">${brandBadge}${sizeBadge}${condBadge}${heartsBadge}${brandBoostBadge}${velBadge}</div>
         <div class="freshness-bar-wrap" title="${freshnessLabel}">
           <div class="freshness-bar" style="width:${f}%;background:${freshnessColor}"></div>
         </div>
         <div class="freshness-label" style="color:${freshnessColor}">${freshnessLabel}</div>
         <div class="card-price-row">
           <span class="card-price">${fmt(item.price, currency)}</span>
-          <span class="card-was">mean ${fmt(item.groupMean ?? 0, currency)}</span>
+          <span class="card-was">avg ${fmt(item.groupMean ?? 0, currency)}</span>
         </div>
         ${compLine}
         ${profitStr ? `<div class="profit-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> ~${profitStr} profit after fees</div>` : ''}
@@ -314,7 +333,7 @@ scanBtn.addEventListener('click', async () => {
   function flushCards(currency) {
     allDeals.sort((a, b) => (b.hotScore ?? 0) - (a.hotScore ?? 0));
     resultsGrid.innerHTML = allDeals
-      .map(item => renderCard(item, currency))
+      .map((item, i) => renderCard(item, currency, i + 1))
       .join('');
   }
 

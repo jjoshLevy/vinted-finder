@@ -147,6 +147,38 @@ function mean(arr) {
 }
 
 // -----------------------------------------------------------------------
+// Brand priority scores — higher = better resale demand
+// Normalised 0-10; items not in map get 0.
+// -----------------------------------------------------------------------
+const BRAND_SCORES = {
+  // Streetwear / hype
+  'supreme': 10, 'palace': 10, 'stussy': 9, 'stüssy': 9, 'off-white': 10,
+  'bape': 10, 'a bathing ape': 10, 'cdg': 9, 'comme des garcons': 9,
+  'comme des garçons': 9, 'kith': 8, 'fear of god': 9, 'essentials': 7,
+  'obey': 6, 'huf': 6, 'carhartt': 7, 'carhartt wip': 8,
+  // Footwear
+  'nike': 8, 'jordan': 10, 'air jordan': 10, 'adidas': 7, 'yeezy': 10,
+  'new balance': 7, 'asics': 6, 'salomon': 7, 'converse': 5, 'vans': 5,
+  'reebok': 5, 'puma': 5, 'saucony': 6, 'nb': 6, 'onitsuka tiger': 7,
+  // Luxury
+  'louis vuitton': 10, 'gucci': 10, 'prada': 10, 'burberry': 9,
+  'stone island': 9, 'moncler': 10, 'canada goose': 9, 'ralph lauren': 7,
+  'lacoste': 6, 'hugo boss': 6, 'versace': 9, 'balenciaga': 10,
+  'givenchy': 9, 'fendi': 9, 'dior': 10, 'saint laurent': 10,
+  'alexander mcqueen': 9, 'bottega veneta': 9,
+  // Sport / outdoor
+  'north face': 8, 'the north face': 8, 'arc\'teryx': 9, 'arcteryx': 9,
+  'patagonia': 8, 'columbia': 6, 'berghaus': 6,
+  // Tech / gaming collectibles
+  'apple': 8, 'sony': 7, 'nintendo': 8, 'lego': 8,
+};
+
+function brandScore(brandName) {
+  const key = (brandName || '').toLowerCase().trim();
+  return BRAND_SCORES[key] ?? 0;
+}
+
+// -----------------------------------------------------------------------
 // Similarity grouping: group items by brand + extracted product model
 // so each item is only compared against truly similar listings.
 // -----------------------------------------------------------------------
@@ -373,6 +405,9 @@ app.get('/api/search', async (req, res) => {
       ? maxId - Math.round(maxAgeDaysVal * ID_PER_DAY)
       : 0;
 
+    // ID_PER_MINUTE: 700k IDs/day ÷ 1440 min
+    const ID_PER_MINUTE = ID_PER_DAY / 1440;
+
     const underpriced = annotated
       .filter(item => {
         if (item._groupMean == null) return false;
@@ -388,14 +423,51 @@ app.get('/api/search', async (req, res) => {
         const estimatedProfit = Math.round((item._groupMean - buyCost) * 100) / 100;
         const discount = Math.round(((item._groupMean - item._price) / item._groupMean) * 100);
         const hearts   = item.favourite_count ?? item.favourites_count ?? 0;
-        // Absolute age: how many days old this item is estimated to be
-        const ageDays   = (maxId - Number(item.id)) / ID_PER_DAY;
-        // Freshness 0-1: 0 days old = 1.0, 30+ days old = 0.0 (for hotScore & bar)
+
+        // Age as days and minutes
+        const ageDays    = (maxId - Number(item.id)) / ID_PER_DAY;
+        const ageMinutes = (maxId - Number(item.id)) / ID_PER_MINUTE;
+
+        // Freshness 0-1: brand new = 1.0, 30+ days = 0.0
         const freshness = Math.max(0, 1 - ageDays / 30);
-        // Composite hotness score: profit weighted by hearts & freshness
-        const hotScore  = estimatedProfit * Math.pow(1 + hearts, 0.4) * (0.35 + 0.65 * freshness);
-        const isNew     = ageDays < 1;
-        return { ...item, _estimatedProfit: estimatedProfit, _discount: discount, _freshness: freshness, _ageDays: ageDays, _hotScore: hotScore, _isNew: isNew };
+
+        // Like velocity: hearts per minute (capped to avoid div/0 on newest item)
+        const likeVelocity = ageMinutes > 0.5 ? hearts / ageMinutes : hearts * 2;
+
+        // Brand priority boost (0-10 scale, normalised to 0-1 for scoring)
+        const bScore  = brandScore(item.brand_title);
+        const brandBoost = bScore / 10;  // 0.0 – 1.0
+
+        // Is it very fresh? < 5 minutes estimated
+        const isHot  = ageMinutes < 5;
+        const isNew  = ageDays < 1;
+
+        // ── Composite hotScore ──────────────────────────────────────────
+        // Base: profit potential
+        // × hearts signal (log-like curve)
+        // × freshness curve
+        // + brand bonus (adds up to 20% on top for top-tier brands)
+        // + velocity surge (high velocity = extra push)
+        const hotScore =
+          estimatedProfit
+          * Math.pow(1 + hearts, 0.4)
+          * (0.3 + 0.7 * freshness)
+          * (1 + 0.2 * brandBoost)
+          + Math.min(likeVelocity, 5) * estimatedProfit * 0.1;
+
+        return {
+          ...item,
+          _estimatedProfit: estimatedProfit,
+          _discount: discount,
+          _freshness: freshness,
+          _ageDays: ageDays,
+          _ageMinutes: ageMinutes,
+          _hotScore: hotScore,
+          _isNew: isNew,
+          _isHot: isHot,
+          _likeVelocity: likeVelocity,
+          _brandBoost: bScore,
+        };
       })
       .sort((a, b) => b._hotScore - a._hotScore);  // best overall value first
 
@@ -413,9 +485,13 @@ app.get('/api/search', async (req, res) => {
       estimatedProfit: item._estimatedProfit,
       buyCost:         Math.round(totalBuyCost(item._price) * 100) / 100,
       hearts:          item.favourite_count ?? item.favourites_count ?? 0,
-      freshness:       Math.round(item._freshness * 100),  // 0-100, absolute (0=30+days, 100=brand new)
-      ageDays:         Math.round(item._ageDays * 10) / 10, // estimated days since listed
+      freshness:       Math.round(item._freshness * 100),  // 0-100
+      ageDays:         Math.round(item._ageDays * 10) / 10,
+      ageMinutes:      Math.round(item._ageMinutes * 10) / 10,
       isNew:           item._isNew,
+      isHot:           item._isHot,
+      likeVelocity:    Math.round(item._likeVelocity * 100) / 100,
+      brandBoost:      item._brandBoost,  // 0-10
       hotScore:        Math.round(item._hotScore * 10) / 10,
       image:           item.photos?.[0]?.url ?? item.photo?.url ?? null,
       url:             item.url ?? `${baseUrl}/items/${item.id}`,
