@@ -58,6 +58,12 @@ const statBest       = document.getElementById('statBest');
 const errorBanner    = document.getElementById('errorBanner');
 const emptyState     = document.getElementById('emptyState');
 const resultsGrid    = document.getElementById('resultsGrid');
+const savedDealsBtn   = document.getElementById('savedDealsBtn');
+const savedCountEl    = document.getElementById('savedCount');
+const savedPanel      = document.getElementById('savedPanel');
+const savedGrid       = document.getElementById('savedGrid');
+const savedEmpty      = document.getElementById('savedEmpty');
+const refreshSavedBtn = document.getElementById('refreshSavedBtn');
 
 /* ── Build category chips (grouped) ───────────────────────────────────── */
 let selectedCategories = new Set(CATEGORIES.map(c => c.id));
@@ -165,7 +171,7 @@ function showSkeletons(count = 12) {
 }
 
 /* ── Card renderer ────────────────────────────────────────────────────── */
-function renderCard(item, currency, rank) {
+function renderCard(item, currency, rank, savedMeta = null) {
   const hasImg = item.image && item.image.trim() !== '';
   const imgHtml = hasImg
     ? `<img src="${escHtml(item.image)}" alt="${escHtml(item.title)}" loading="lazy" />`
@@ -202,6 +208,11 @@ function renderCard(item, currency, rank) {
     ? `<span class="badge badge-size-ok" title="Good resale size">📐 Good size</span>`
     : '';
 
+  // Saved deal expiry line (only shown in Saved Deals panel)
+  const expiryLine = savedMeta
+    ? `<div class="expiry-line${savedMeta.urgent ? ' expiry-urgent' : ''}">${savedMeta.text}</div>`
+    : '';
+
   // Like velocity badge
   const velBadge = item.likeVelocity >= 0.5
     ? `<span class="badge badge-velocity" title="Like velocity: ${item.likeVelocity.toFixed(2)}/min">⚡ ${item.likeVelocity >= 1 ? item.likeVelocity.toFixed(1) + '/min' : 'Rising'}</span>`
@@ -236,7 +247,7 @@ function renderCard(item, currency, rank) {
     : '';
 
   return `
-    <a class="deal-card" href="${escHtml(item.url)}" target="_blank" rel="noopener noreferrer">
+    <a class="deal-card" href="${escHtml(item.url)}" target="_blank" rel="noopener noreferrer" data-deal-id="${escHtml(String(item.id))}">
       <div class="card-img-wrap">
         ${imgHtml}
         <div class="discount-badge">-${item.discount}% vs avg</div>
@@ -257,6 +268,7 @@ function renderCard(item, currency, rank) {
         </div>
         ${compLine}
         ${profitStr ? `<div class="profit-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> ~${profitStr} profit after fees</div>` : ''}
+        ${expiryLine}
       </div>
     </a>
   `;
@@ -398,6 +410,9 @@ scanBtn.addEventListener('click', async () => {
     if (!abortScan) await sleep(400);
   }
 
+  // Auto-save all found deals for persistence
+  if (allDeals.length > 0) saveDealsToPersistent(allDeals);
+
   setLoading(false);
 
   if (allDeals.length === 0) {
@@ -405,3 +420,67 @@ scanBtn.addEventListener('click', async () => {
     emptyState.hidden = false;
   }
 });
+
+/* ── Persistent deal store ────────────────────────────────────────────── */
+
+async function saveDealsToPersistent(deals) {
+  try {
+    const { saved } = await fetch('/api/deals/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(deals),
+    }).then(r => r.json());
+    savedCountEl.textContent = saved;
+    savedCountEl.hidden = saved === 0;
+  } catch (_) {}
+}
+
+function getExpiryInfo(deal) {
+  const now = Date.now();
+  if (!deal.lastSeen) {
+    const daysLeft = 3 - (now - new Date(deal.firstSeen).getTime()) / 86400000;
+    const d = Math.max(0, Math.ceil(daysLeft));
+    return { text: `Never opened · auto-removes in ${d} day${d !== 1 ? 's' : ''}`, urgent: daysLeft < 1 };
+  }
+  const daysLeft = 7 - (now - new Date(deal.lastSeen).getTime()) / 86400000;
+  const d = Math.max(0, Math.ceil(daysLeft));
+  return { text: `Opened ${deal.seenCount}× · auto-removes in ${d} day${d !== 1 ? 's' : ''}`, urgent: daysLeft < 2 };
+}
+
+async function loadSavedDeals() {
+  savedGrid.innerHTML = '';
+  savedEmpty.hidden = true;
+  try {
+    const { deals } = await fetch('/api/deals/saved').then(r => r.json());
+    if (!deals || deals.length === 0) { savedEmpty.hidden = false; return; }
+    const currency = deals[0]?.currency || 'EUR';
+    savedGrid.innerHTML = deals.map((item, i) => renderCard(item, currency, i + 1, getExpiryInfo(item))).join('');
+    savedCountEl.textContent = deals.length;
+    savedCountEl.hidden = false;
+  } catch (_) { savedEmpty.hidden = false; }
+}
+
+// Toggle the saved deals panel
+savedDealsBtn.addEventListener('click', () => {
+  const isOpen = !savedPanel.hidden;
+  savedPanel.hidden = isOpen;
+  savedDealsBtn.classList.toggle('active', !isOpen);
+  if (!isOpen) loadSavedDeals();
+});
+
+refreshSavedBtn.addEventListener('click', loadSavedDeals);
+
+// Track clicks on any deal card — resets its expiry
+document.addEventListener('click', e => {
+  const card = e.target.closest('[data-deal-id]');
+  if (!card) return;
+  navigator.sendBeacon(`/api/deals/${encodeURIComponent(card.dataset.dealId)}/seen`);
+});
+
+// Show saved count on page load
+(async () => {
+  try {
+    const { total } = await fetch('/api/deals/saved').then(r => r.json());
+    if (total > 0) { savedCountEl.textContent = total; savedCountEl.hidden = false; }
+  } catch (_) {}
+})();

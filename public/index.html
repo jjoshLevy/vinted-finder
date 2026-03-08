@@ -34,6 +34,9 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
           </span>
         </button>
+        <button type="button" class="btn-saved" id="savedDealsBtn">
+          &#128203; Saved <span class="saved-count" id="savedCount" hidden>0</span>
+        </button>
       </div>
 
       <div class="filters-row">
@@ -105,6 +108,23 @@
       </div>
 
       <div id="categoryChips" class="category-chips"></div>
+    </section>
+
+    <!-- Saved deals panel -->
+    <section class="saved-panel" id="savedPanel" hidden>
+      <div class="saved-panel-header">
+        <div>
+          <div class="saved-panel-title">&#128203; Saved Deals</div>
+          <p class="saved-panel-desc">Auto-saved from every scan. Never-opened items are removed after <strong>3 days</strong>. Items you click are kept for <strong>7 days</strong> from your last view.</p>
+        </div>
+        <button type="button" class="btn-text-action" id="refreshSavedBtn">&#8635; Refresh</button>
+      </div>
+      <div id="savedGrid" class="results-grid"></div>
+      <div id="savedEmpty" class="empty-state" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        <p>No saved deals yet.</p>
+        <p class="sub">Run a scan &mdash; good deals are saved automatically.</p>
+      </div>
     </section>
 
     <!-- Stats bar -->

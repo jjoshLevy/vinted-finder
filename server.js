@@ -6,6 +6,7 @@ const path = require('path');
 const fs   = require('fs');
 
 const app = express();
+app.use(express.json({ limit: '2mb' }));
 const PORT = 3000;
 
 // --- Vinted domain options ---
@@ -576,6 +577,67 @@ app.get('/api/search', async (req, res) => {
     delete _pages[domain];
     res.status(502).json({ error: 'api_error', message: `Failed to reach Vinted: ${err.message}` });
   }
+});
+
+// -----------------------------------------------------------------------
+// Persistent deal store — saved to deals.json (gitignored)
+// Unseen items expire after 3 days; viewed items expire 7 days after last click.
+// -----------------------------------------------------------------------
+const DEALS_FILE    = path.join(__dirname, 'deals.json');
+const UNSEEN_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+const SEEN_TTL_MS   = 7 * 24 * 60 * 60 * 1000;
+
+function loadDeals() {
+  try { return JSON.parse(fs.readFileSync(DEALS_FILE, 'utf8')); }
+  catch { return {}; }
+}
+function persistDeals(deals) { fs.writeFileSync(DEALS_FILE, JSON.stringify(deals, null, 2)); }
+function pruneDeals(deals) {
+  const now = Date.now();
+  for (const [id, d] of Object.entries(deals)) {
+    if (!d.lastSeen && now - new Date(d.firstSeen).getTime() > UNSEEN_TTL_MS) { delete deals[id]; continue; }
+    if (d.lastSeen  && now - new Date(d.lastSeen).getTime()  > SEEN_TTL_MS)   { delete deals[id]; }
+  }
+  return deals;
+}
+
+// Merge newly-scanned deals in (preserves firstSeen / seenCount for existing)
+app.post('/api/deals/save', (req, res) => {
+  if (!Array.isArray(req.body)) return res.status(400).json({ error: 'array expected' });
+  const deals = pruneDeals(loadDeals());
+  const now   = new Date().toISOString();
+  for (const item of req.body) {
+    if (!item.id) continue;
+    if (deals[item.id]) {
+      deals[item.id].hotScore   = item.hotScore;
+      deals[item.id].freshness  = item.freshness;
+      deals[item.id].ageMinutes = item.ageMinutes;
+      deals[item.id].estimatedProfit = item.estimatedProfit;
+    } else {
+      deals[item.id] = { ...item, firstSeen: now, lastSeen: null, seenCount: 0 };
+    }
+  }
+  persistDeals(deals);
+  res.json({ saved: Object.keys(deals).length });
+});
+
+// Called when user clicks a deal — resets the expiry clock
+app.post('/api/deals/:id/seen', (req, res) => {
+  const deals = loadDeals();
+  if (deals[req.params.id]) {
+    deals[req.params.id].lastSeen  = new Date().toISOString();
+    deals[req.params.id].seenCount = (deals[req.params.id].seenCount || 0) + 1;
+    persistDeals(deals);
+  }
+  res.json({ ok: true });
+});
+
+// Return all non-expired deals sorted by hotScore
+app.get('/api/deals/saved', (req, res) => {
+  const deals = pruneDeals(loadDeals());
+  persistDeals(deals);
+  const sorted = Object.values(deals).sort((a, b) => (b.hotScore ?? 0) - (a.hotScore ?? 0));
+  res.json({ deals: sorted, total: sorted.length });
 });
 
 app.listen(PORT, async () => {

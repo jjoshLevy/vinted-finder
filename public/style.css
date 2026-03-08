@@ -701,3 +701,90 @@ footer {
   .results-grid { grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); }
   .logo { font-size: 1.5rem; }
 }
+
+/* ─── Saved deals button ─────────────────────────────────────────────────── */
+.btn-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: .55rem 1.1rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: .9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  white-space: nowrap;
+}
+.btn-saved:hover, .btn-saved.active {
+  background: var(--surface2);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.saved-count {
+  background: var(--accent);
+  color: #fff;
+  font-size: .7rem;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 99px;
+  min-width: 18px;
+  text-align: center;
+}
+
+/* ─── Saved deals panel ────────────────────────────────────────────────── */
+.saved-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.saved-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.saved-panel-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: .3rem;
+}
+.saved-panel-desc {
+  font-size: .8rem;
+  color: var(--muted);
+  margin: 0;
+}
+.btn-text-action {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: .85rem;
+  padding: .3rem .7rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .15s, border-color .15s;
+}
+.btn-text-action:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ─── Expiry line inside saved cards ────────────────────────────────── */
+.expiry-line {
+  font-size: .68rem;
+  color: var(--muted);
+  margin-top: 5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+}
+.expiry-urgent {
+  color: #ff6b6b;
+  border-color: #ff6b6b44;
+  background: #ff6b6b11;
+  animation: pulse-hot 1.4s ease-in-out infinite;
+}
