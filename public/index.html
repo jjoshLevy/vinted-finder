@@ -67,7 +67,7 @@
           <span>Min ❤ hearts</span>
           <div class="profit-input-wrap">
             <span class="profit-prefix">♥</span>
-            <input type="number" id="minHeartsInput" min="0" max="999" value="3" step="1" />
+            <input type="number" id="minHeartsInput" min="0" max="999" value="0" step="1" />
           </div>
         </label>
 
@@ -127,6 +127,16 @@
       </div>
     </section>
 
+    <!-- Daily flip summary (loads from saved deals on page open) -->
+    <section class="daily-summary" id="dailySummary" hidden>
+      <div class="summary-header">
+        <div class="summary-title">&#127881; Today's Best Flips</div>
+        <div class="summary-subtitle">From your saved deals — open the site, see what's worth checking instantly</div>
+      </div>
+      <div class="summary-list"></div>
+      <div class="summary-footer"></div>
+    </section>
+
     <!-- Stats bar -->
     <div id="statsBar" class="stats-bar" hidden>
       <div class="stat">
@@ -157,8 +167,45 @@
       <p class="sub">Try lowering the min profit threshold or switching to a different country.</p>
     </div>
 
-    <!-- Results grid -->
+    <!-- Results grid (live scan progress display) -->
     <div id="resultsGrid" class="results-grid"></div>
+
+    <!-- Sectioned results (shown after scan completes) -->
+    <div id="resultSections" hidden>
+
+      <section class="deals-section" id="secBestFlips">
+        <div class="section-header">
+          <span class="section-icon">&#127942;</span>
+          <div><div class="section-title">Best Flips Today</div><div class="section-subtitle">Top 10 deals by estimated profit after fees</div></div>
+        </div>
+        <div class="results-grid" id="gridBestFlips"></div>
+      </section>
+
+      <section class="deals-section" id="secHighDiscount">
+        <div class="section-header">
+          <span class="section-icon">&#128176;</span>
+          <div><div class="section-title">High Discount Deals</div><div class="section-subtitle">Items priced far below market value &mdash; including old listings nobody noticed</div></div>
+        </div>
+        <div class="results-grid" id="gridHighDiscount"></div>
+      </section>
+
+      <section class="deals-section" id="secLowComp">
+        <div class="section-header">
+          <span class="section-icon">&#128269;</span>
+          <div><div class="section-title">Low Competition</div><div class="section-subtitle">Few likes &middot; big profit &mdash; hidden gems buyers haven't spotted yet</div></div>
+        </div>
+        <div class="results-grid" id="gridLowComp"></div>
+      </section>
+
+      <section class="deals-section" id="secRecent">
+        <div class="section-header">
+          <span class="section-icon">&#9889;</span>
+          <div><div class="section-title">Recent Listings</div><div class="section-subtitle">Newest items &mdash; get in before other buyers see them</div></div>
+        </div>
+        <div class="results-grid" id="gridRecent"></div>
+      </section>
+
+    </div>
   </main>
 
   <footer>

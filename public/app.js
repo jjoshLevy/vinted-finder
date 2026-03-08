@@ -57,7 +57,13 @@ const statDeals      = document.getElementById('statDeals');
 const statBest       = document.getElementById('statBest');
 const errorBanner    = document.getElementById('errorBanner');
 const emptyState     = document.getElementById('emptyState');
-const resultsGrid    = document.getElementById('resultsGrid');
+const resultsGrid     = document.getElementById('resultsGrid');
+const resultSections  = document.getElementById('resultSections');
+const gridBestFlips   = document.getElementById('gridBestFlips');
+const gridHighDiscount = document.getElementById('gridHighDiscount');
+const gridLowComp     = document.getElementById('gridLowComp');
+const gridRecent      = document.getElementById('gridRecent');
+const dailySummary    = document.getElementById('dailySummary');
 const savedDealsBtn   = document.getElementById('savedDealsBtn');
 const savedCountEl    = document.getElementById('savedCount');
 const savedPanel      = document.getElementById('savedPanel');
@@ -149,6 +155,8 @@ function clearUI() {
   emptyState.hidden = true;
   statsBar.hidden = true;
   resultsGrid.innerHTML = '';
+  resultsGrid.hidden = false;
+  resultSections.hidden = true;
   // Reset chip states
   CATEGORIES.forEach(c => {
     const el = document.getElementById('chip-' + c.id);
@@ -241,33 +249,55 @@ function renderCard(item, currency, rank, savedMeta = null) {
   const rankStyle  = rank <= 3 ? `background:${rankColors[rank - 1]};color:#111` : '';
   const rankBadge  = `<div class="rank-badge" style="${rankStyle}">#${rank}</div>`;
 
-  const profitStr  = item.estimatedProfit != null ? fmt(item.estimatedProfit, currency) : '';
-  const compLine   = item.groupMean
-    ? `<div class="card-comp">vs ${item.groupSize} similar · avg ${fmt(item.groupMean, currency)}</div>`
+  const profitStr = item.estimatedProfit != null ? fmt(item.estimatedProfit, currency) : '';
+
+  // Hidden gem: old listing (7+ days) that is still heavily discounted — nobody noticed
+  const hiddenGemBadge = (item.discount >= 50 && ageDays >= 7)
+    ? `<div class="hidden-gem-alert">&#128142; Undervalued gem &middot; ${Math.round(ageDays)} days old &middot; nobody noticed</div>`
     : '';
+
+  // Deal score: Profit×10 + Discount%×3 + Brand×5 + Freshness bonus (max 60 for brand new)
+  const displayScore = Math.max(0, Math.round(
+    (item.estimatedProfit ?? 0) * 10 +
+    (item.discount ?? 0) * 3 +
+    (item.brandBoost ?? 0) * 5 +
+    Math.max(0, 30 - ageDays) * 2
+  ));
 
   return `
     <a class="deal-card" href="${escHtml(item.url)}" target="_blank" rel="noopener noreferrer" data-deal-id="${escHtml(String(item.id))}">
       <div class="card-img-wrap">
         ${imgHtml}
-        <div class="discount-badge">-${item.discount}% vs avg</div>
         ${hotBadge}${newBadge}
         ${rankBadge}
       </div>
       <div class="card-body">
         <div class="card-title">${escHtml(item.title)}</div>
         <div class="card-meta">${brandBadge}${sizeBadge}${condBadge}${heartsBadge}${brandBoostBadge}${hiddenBrandBadge}${velBadge}${sizeDemandBadge}</div>
-        ${mispriceBadge}
-        <div class="freshness-bar-wrap" title="${freshnessLabel}">
-          <div class="freshness-bar" style="width:${f}%;background:${freshnessColor}"></div>
+        ${mispriceBadge}${hiddenGemBadge}
+        <div class="card-price-grid">
+          <div class="price-col">
+            <div class="price-label">Buy price</div>
+            <div class="price-val">${fmt(item.price, currency)}</div>
+          </div>
+          <div class="price-col">
+            <div class="price-label">Est. resale</div>
+            <div class="price-val price-resale">${item.groupMean ? fmt(item.groupMean, currency) : '&mdash;'}</div>
+          </div>
+          <div class="price-col">
+            <div class="price-label">Profit</div>
+            <div class="price-val price-profit">${profitStr || '&mdash;'}</div>
+          </div>
         </div>
-        <div class="freshness-label" style="color:${freshnessColor}">${freshnessLabel}</div>
-        <div class="card-price-row">
-          <span class="card-price">${fmt(item.price, currency)}</span>
-          <span class="card-was">avg ${fmt(item.groupMean ?? 0, currency)}</span>
+        <div class="card-info-row">
+          <span class="info-chip">-${item.discount}% vs avg</span>
+          <span class="info-chip">&#9829; ${item.hearts ?? 0}</span>
+          <span class="info-chip" style="color:${freshnessColor}">${freshnessLabel}</span>
         </div>
-        ${compLine}
-        ${profitStr ? `<div class="profit-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> ~${profitStr} profit after fees</div>` : ''}
+        <div class="card-score-row">
+          <span class="deal-score-chip" title="Score = Profit&times;10 + Discount&times;3 + Brand&times;5 + Freshness&times;2">Score ${displayScore}</span>
+          ${item.groupSize ? `<span class="comp-chip">vs ${item.groupSize} similar</span>` : ''}
+        </div>
         ${expiryLine}
       </div>
     </a>
@@ -367,47 +397,46 @@ scanBtn.addEventListener('click', async () => {
       .join('');
   }
 
-  for (const cat of toScan) {
+  // Run categories in parallel batches of 5 — ~5x faster than sequential
+  const BATCH = 5;
+  for (let i = 0; i < toScan.length; i += BATCH) {
     if (abortScan) break;
-    try {
-      const data = await scanCategory(cat, domain, minProfit, minHearts, maxPrice, maxAgeDays, pages);
-      defaultCurrency = data.currency || defaultCurrency;
-      totalScanned += data.totalFetched || 0;
-      doneCount++;
+    const batch = toScan.slice(i, i + BATCH);
 
-      // Add new unique deals
-      for (const item of (data.items || [])) {
-        if (!seenIds.has(item.id)) {
-          seenIds.add(item.id);
-          allDeals.push(item); // item already carries groupMedian/groupSize/groupLabel from server
+    await Promise.all(batch.map(async cat => {
+      try {
+        const data = await scanCategory(cat, domain, minProfit, minHearts, maxPrice, maxAgeDays, pages);
+        defaultCurrency = data.currency || defaultCurrency;
+        totalScanned += data.totalFetched || 0;
+        doneCount++;
+
+        for (const item of (data.items || [])) {
+          if (!seenIds.has(item.id)) {
+            seenIds.add(item.id);
+            allDeals.push(item);
+          }
         }
+      } catch (err) {
+        const chip = document.getElementById('chip-' + cat.id);
+        if (chip) { chip.classList.remove('scanning'); chip.classList.add('done'); }
+        doneCount++;
       }
+    }));
 
-      // Live stats
-      statTotal.textContent      = totalScanned.toLocaleString();
-      statCategories.textContent = `${doneCount} / ${toScan.length}`;
-      statDeals.textContent      = allDeals.length.toLocaleString();
+    // Update stats + cards after each batch
+    statTotal.textContent      = totalScanned.toLocaleString();
+    statCategories.textContent = `${doneCount} / ${toScan.length}`;
+    statDeals.textContent      = allDeals.length.toLocaleString();
 
-      if (allDeals.length > 0) {
-        const best = allDeals.reduce((a, b) => (b.hotScore ?? 0) > (a.hotScore ?? 0) ? b : a);
-        statBest.textContent = best.estimatedProfit != null
-          ? `~${fmt(best.estimatedProfit, defaultCurrency)} profit ♥${best.hearts ?? 0}`
-          : `-${best.discount}% off`;
-      }
-
-      // Replace skeletons on first hit, then update
-      if (doneCount === 1) resultsGrid.innerHTML = '';
-      flushCards(defaultCurrency);
-
-    } catch (err) {
-      const chip = document.getElementById('chip-' + cat.id);
-      if (chip) { chip.classList.remove('scanning'); chip.classList.add('done'); }
-      doneCount++;
-      statCategories.textContent = `${doneCount} / ${toScan.length}`;
+    if (allDeals.length > 0) {
+      const best = allDeals.reduce((a, b) => (b.hotScore ?? 0) > (a.hotScore ?? 0) ? b : a);
+      statBest.textContent = best.estimatedProfit != null
+        ? `~${fmt(best.estimatedProfit, defaultCurrency)} profit ♥${best.hearts ?? 0}`
+        : `-${best.discount}% off`;
     }
 
-    // Small delay between requests to be polite to the API
-    if (!abortScan) await sleep(400);
+    if (doneCount <= BATCH) resultsGrid.innerHTML = '';   // clear skeletons on first batch
+    flushCards(defaultCurrency);
   }
 
   // Auto-save all found deals for persistence
@@ -418,6 +447,10 @@ scanBtn.addEventListener('click', async () => {
   if (allDeals.length === 0) {
     resultsGrid.innerHTML = '';
     emptyState.hidden = false;
+  } else {
+    // Switch from progressive grid view to categorized sections
+    resultsGrid.hidden = true;
+    renderSections(allDeals, defaultCurrency);
   }
 });
 
@@ -457,7 +490,52 @@ async function loadSavedDeals() {
     savedGrid.innerHTML = deals.map((item, i) => renderCard(item, currency, i + 1, getExpiryInfo(item))).join('');
     savedCountEl.textContent = deals.length;
     savedCountEl.hidden = false;
+    renderDailySummary(deals);
   } catch (_) { savedEmpty.hidden = false; }
+}
+
+/* ── Section renderer — called after scan completes ─────────────────── */
+function renderSections(deals, currency) {
+  resultSections.hidden = false;
+
+  const byProfit   = [...deals].sort((a, b) => (b.estimatedProfit ?? 0) - (a.estimatedProfit ?? 0)).slice(0, 10);
+  const byDiscount = [...deals].sort((a, b) => (b.discount ?? 0) - (a.discount ?? 0)).slice(0, 10);
+  const lowComp    = [...deals].filter(d => (d.hearts ?? 0) < 10)
+                               .sort((a, b) => (b.estimatedProfit ?? 0) - (a.estimatedProfit ?? 0))
+                               .slice(0, 10);
+  const byRecent   = [...deals].sort((a, b) => (b.freshness ?? 0) - (a.freshness ?? 0)).slice(0, 10);
+
+  const fill = (list, grid, secId) => {
+    const sec = document.getElementById(secId);
+    if (!sec) return;
+    if (list.length === 0) { sec.hidden = true; return; }
+    sec.hidden = false;
+    grid.innerHTML = list.map((item, i) => renderCard(item, currency, i + 1)).join('');
+  };
+
+  fill(byProfit,   gridBestFlips,    'secBestFlips');
+  fill(byDiscount, gridHighDiscount, 'secHighDiscount');
+  fill(lowComp,    gridLowComp,      'secLowComp');
+  fill(byRecent,   gridRecent,       'secRecent');
+}
+
+/* ── Daily flip summary ──────────────────────────────────────────────── */
+function renderDailySummary(deals) {
+  if (!deals || deals.length === 0) { dailySummary.hidden = true; return; }
+  const currency = deals[0]?.currency || 'EUR';
+  const top3 = [...deals].sort((a, b) => (b.estimatedProfit ?? 0) - (a.estimatedProfit ?? 0)).slice(0, 3);
+  dailySummary.hidden = false;
+  const medals = ['\uD83E\uDD47', '\uD83E\uDD48', '\uD83E\uDD49'];
+  dailySummary.querySelector('.summary-list').innerHTML = top3.map((item, i) =>
+    `<a class="summary-item" href="${escHtml(item.url)}" target="_blank" rel="noopener noreferrer" data-deal-id="${escHtml(String(item.id))}">
+      <span class="summary-medal">${medals[i]}</span>
+      <span class="summary-name">${escHtml(item.title)}</span>
+      ${item.brand ? `<span class="summary-brand">${escHtml(item.brand)}</span>` : ''}
+      <span class="summary-profit">~${fmt(item.estimatedProfit ?? 0, currency)} profit</span>
+    </a>`
+  ).join('');
+  const footer = dailySummary.querySelector('.summary-footer');
+  footer.textContent = deals.length > 3 ? `+${deals.length - 3} more deals saved` : '';
 }
 
 // Toggle the saved deals panel
@@ -477,10 +555,14 @@ document.addEventListener('click', e => {
   navigator.sendBeacon(`/api/deals/${encodeURIComponent(card.dataset.dealId)}/seen`);
 });
 
-// Show saved count on page load
+// Show saved count + daily summary on page load
 (async () => {
   try {
-    const { total } = await fetch('/api/deals/saved').then(r => r.json());
-    if (total > 0) { savedCountEl.textContent = total; savedCountEl.hidden = false; }
+    const { deals } = await fetch('/api/deals/saved').then(r => r.json());
+    if (deals && deals.length > 0) {
+      savedCountEl.textContent = deals.length;
+      savedCountEl.hidden = false;
+      renderDailySummary(deals);
+    }
   } catch (_) {}
 })();

@@ -788,3 +788,113 @@ footer {
   background: #ff6b6b11;
   animation: pulse-hot 1.4s ease-in-out infinite;
 }
+
+/* ─── Daily flip summary ──────────────────────────────────────────── */
+.daily-summary {
+  background: linear-gradient(135deg, var(--surface), #0d2d1a);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 1.2rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.summary-header { margin-bottom: 1rem; }
+.summary-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--accent);
+  margin-bottom: .2rem;
+}
+.summary-subtitle { font-size: .78rem; color: var(--muted); }
+.summary-list { display: flex; flex-direction: column; gap: .4rem; }
+.summary-item {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .5rem .75rem;
+  background: var(--surface2);
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text);
+  transition: background .15s;
+}
+.summary-item:hover { background: var(--border); }
+.summary-medal { font-size: 1.1rem; flex-shrink: 0; }
+.summary-name  { flex: 1; font-weight: 600; font-size: .88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.summary-brand { font-size: .73rem; color: var(--muted); flex-shrink: 0; }
+.summary-profit { font-weight: 800; color: var(--accent); font-size: .9rem; flex-shrink: 0; }
+.summary-footer { font-size: .72rem; color: var(--muted); margin-top: .65rem; text-align: right; }
+
+/* ─── Deal sections ──────────────────────────────────────────────── */
+.deals-section { margin-bottom: 2.5rem; }
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: 1rem;
+  padding-bottom: .75rem;
+  border-bottom: 2px solid var(--border);
+}
+.section-icon  { font-size: 1.5rem; }
+.section-title { font-size: 1.1rem; font-weight: 800; color: var(--text); }
+.section-subtitle { font-size: .78rem; color: var(--muted); margin-top: .15rem; }
+
+/* ─── Restructured card body ──────────────────────────────────────── */
+.card-price-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: .2rem .4rem;
+  margin: .55rem 0 .35rem;
+  padding: .5rem .6rem;
+  background: var(--surface2);
+  border-radius: 6px;
+}
+.price-col   { display: flex; flex-direction: column; gap: 1px; }
+.price-label { font-size: .6rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.price-val   { font-size: .86rem; font-weight: 700; color: var(--text); }
+.price-resale { color: #90caf9; }
+.price-profit { color: var(--accent); font-size: .94rem; }
+
+.card-info-row {
+  display: flex;
+  gap: .3rem;
+  flex-wrap: wrap;
+  margin: .3rem 0;
+}
+.info-chip {
+  font-size: .68rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.card-score-row {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  margin-top: .35rem;
+}
+.deal-score-chip {
+  font-size: .69rem;
+  font-weight: 800;
+  padding: 2px 9px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+}
+.comp-chip { font-size: .68rem; color: var(--muted); }
+
+/* ─── Hidden gem alert ─────────────────────────────────────────────── */
+.hidden-gem-alert {
+  background: linear-gradient(135deg, #1a237e22, #1565c033);
+  border: 1px solid #7986cb;
+  color: #9fa8da;
+  font-size: .69rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 5px;
+  margin: 3px 0;
+}
