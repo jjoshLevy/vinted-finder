@@ -19,24 +19,12 @@ const CATEGORIES = [
   { id: 'palace',     label: 'Palace',          q: 'Palace skateboards',  group: 'Streetwear'    },
   { id: 'stussy',     label: 'Stüssy',          q: 'Stussy',              group: 'Streetwear'    },
   { id: 'northface',  label: 'North Face',      q: 'The North Face',      group: 'Streetwear'    },
-  // Gaming & Collectibles
-  { id: 'pokemon',    label: 'Pokémon Cards',   q: 'Pokemon cards',       group: 'Gaming'        },
-  { id: 'lego',       label: 'LEGO',            q: 'LEGO set',            group: 'Gaming'        },
-  { id: 'switch',     label: 'Nintendo Switch', q: 'Nintendo Switch',     group: 'Gaming'        },
-  { id: 'ps5',        label: 'PlayStation',     q: 'PlayStation 5',       group: 'Gaming'        },
-  { id: 'xbox',       label: 'Xbox',            q: 'Xbox Series',         group: 'Gaming'        },
-  // Tech & Electronics
-  { id: 'airpods',    label: 'AirPods',         q: 'Apple AirPods',       group: 'Tech'          },
-  { id: 'dyson',      label: 'Dyson',           q: 'Dyson',               group: 'Tech'          },
-  { id: 'sonyheadphones', label: 'Sony Headphones', q: 'Sony headphones', group: 'Tech'          },
   // Sports
   { id: 'football',   label: 'Football Shirt',  q: 'football shirt',      group: 'Sports'        },
   { id: 'patagonia',  label: 'Patagonia',       q: 'Patagonia',           group: 'Sports'        },
-  // Watches & Vintage
+  // Watches
   { id: 'seiko',      label: 'Seiko Watch',     q: 'Seiko watch',         group: 'Watches'       },
   { id: 'casio',      label: 'Casio Watch',     q: 'Casio watch',         group: 'Watches'       },
-  { id: 'vintagecam', label: 'Vintage Camera',  q: 'vintage film camera', group: 'Vintage'       },
-  { id: 'vinylrecord', label: 'Vinyl Records',  q: 'vinyl record',        group: 'Vintage'       },
 ];
 
 /* ── DOM refs ─────────────────────────────────────────────────────────── */
@@ -468,18 +456,6 @@ async function saveDealsToPersistent(deals) {
   } catch (_) {}
 }
 
-function getExpiryInfo(deal) {
-  const now = Date.now();
-  if (!deal.lastSeen) {
-    const daysLeft = 3 - (now - new Date(deal.firstSeen).getTime()) / 86400000;
-    const d = Math.max(0, Math.ceil(daysLeft));
-    return { text: `Never opened · auto-removes in ${d} day${d !== 1 ? 's' : ''}`, urgent: daysLeft < 1 };
-  }
-  const daysLeft = 7 - (now - new Date(deal.lastSeen).getTime()) / 86400000;
-  const d = Math.max(0, Math.ceil(daysLeft));
-  return { text: `Opened ${deal.seenCount}× · auto-removes in ${d} day${d !== 1 ? 's' : ''}`, urgent: daysLeft < 2 };
-}
-
 async function loadSavedDeals() {
   savedGrid.innerHTML = '';
   savedEmpty.hidden = true;
@@ -487,12 +463,32 @@ async function loadSavedDeals() {
     const { deals } = await fetch('/api/deals/saved').then(r => r.json());
     if (!deals || deals.length === 0) { savedEmpty.hidden = false; return; }
     const currency = deals[0]?.currency || 'EUR';
-    savedGrid.innerHTML = deals.map((item, i) => renderCard(item, currency, i + 1, getExpiryInfo(item))).join('');
+    savedGrid.innerHTML = deals.map((item, i) =>
+      `<div class="saved-card-wrap">${renderCard(item, currency, i + 1)}<button class="delete-deal-btn" data-delete-id="${escHtml(String(item.id))}" title="Remove from saved">&#x2715;</button></div>`
+    ).join('');
     savedCountEl.textContent = deals.length;
     savedCountEl.hidden = false;
     renderDailySummary(deals);
   } catch (_) { savedEmpty.hidden = false; }
 }
+
+// Delete a saved deal when the ✕ button is clicked
+savedGrid.addEventListener('click', async e => {
+  const btn = e.target.closest('.delete-deal-btn');
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const id = btn.dataset.deleteId;
+  try {
+    await fetch(`/api/deals/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const wrap = btn.closest('.saved-card-wrap');
+    if (wrap) wrap.remove();
+    const remaining = savedGrid.querySelectorAll('.saved-card-wrap').length;
+    savedCountEl.textContent = remaining;
+    savedCountEl.hidden = remaining === 0;
+    if (remaining === 0) savedEmpty.hidden = false;
+  } catch (_) {}
+});
 
 /* ── Section renderer — called after scan completes ─────────────────── */
 function renderSections(deals, currency) {

@@ -789,6 +789,38 @@ footer {
   animation: pulse-hot 1.4s ease-in-out infinite;
 }
 
+/* ─── Saved card wrapper + delete button ────────────────────────────── */
+.saved-card-wrap {
+  position: relative;
+}
+.delete-deal-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(20,20,20,.75);
+  color: #ccc;
+  font-size: .8rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .15s, background .15s, color .15s;
+}
+.saved-card-wrap:hover .delete-deal-btn {
+  opacity: 1;
+}
+.delete-deal-btn:hover {
+  background: #e74c3c;
+  color: #fff;
+}
+
 /* ─── Daily flip summary ──────────────────────────────────────────── */
 .daily-summary {
   background: linear-gradient(135deg, var(--surface), #0d2d1a);

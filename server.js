@@ -583,42 +583,43 @@ app.get('/api/search', async (req, res) => {
 // Persistent deal store — saved to deals.json (gitignored)
 // Unseen items expire after 3 days; viewed items expire 7 days after last click.
 // -----------------------------------------------------------------------
-const DEALS_FILE    = path.join(__dirname, 'deals.json');
-const UNSEEN_TTL_MS = 3 * 24 * 60 * 60 * 1000;
-const SEEN_TTL_MS   = 7 * 24 * 60 * 60 * 1000;
+const DEALS_FILE = path.join(__dirname, 'deals.json');
+const MAX_SAVED  = 100;
 
 function loadDeals() {
   try { return JSON.parse(fs.readFileSync(DEALS_FILE, 'utf8')); }
   catch { return {}; }
 }
 function persistDeals(deals) { fs.writeFileSync(DEALS_FILE, JSON.stringify(deals, null, 2)); }
+// Keep only the top MAX_SAVED deals by hotScore
 function pruneDeals(deals) {
-  const now = Date.now();
-  for (const [id, d] of Object.entries(deals)) {
-    if (!d.lastSeen && now - new Date(d.firstSeen).getTime() > UNSEEN_TTL_MS) { delete deals[id]; continue; }
-    if (d.lastSeen  && now - new Date(d.lastSeen).getTime()  > SEEN_TTL_MS)   { delete deals[id]; }
-  }
-  return deals;
+  const entries = Object.entries(deals);
+  if (entries.length <= MAX_SAVED) return deals;
+  const top = entries
+    .sort((a, b) => (b[1].hotScore ?? 0) - (a[1].hotScore ?? 0))
+    .slice(0, MAX_SAVED);
+  return Object.fromEntries(top);
 }
 
-// Merge newly-scanned deals in (preserves firstSeen / seenCount for existing)
+// Merge newly-scanned deals in, then cap to top MAX_SAVED by hotScore
 app.post('/api/deals/save', (req, res) => {
   if (!Array.isArray(req.body)) return res.status(400).json({ error: 'array expected' });
-  const deals = pruneDeals(loadDeals());
+  const deals = loadDeals();
   const now   = new Date().toISOString();
   for (const item of req.body) {
     if (!item.id) continue;
     if (deals[item.id]) {
-      deals[item.id].hotScore   = item.hotScore;
-      deals[item.id].freshness  = item.freshness;
-      deals[item.id].ageMinutes = item.ageMinutes;
+      deals[item.id].hotScore        = item.hotScore;
+      deals[item.id].freshness       = item.freshness;
+      deals[item.id].ageMinutes      = item.ageMinutes;
       deals[item.id].estimatedProfit = item.estimatedProfit;
     } else {
-      deals[item.id] = { ...item, firstSeen: now, lastSeen: null, seenCount: 0 };
+      deals[item.id] = { ...item, firstSeen: now, seenCount: 0 };
     }
   }
-  persistDeals(deals);
-  res.json({ saved: Object.keys(deals).length });
+  const pruned = pruneDeals(deals);
+  persistDeals(pruned);
+  res.json({ saved: Object.keys(pruned).length });
 });
 
 // Called when user clicks a deal — resets the expiry clock
@@ -632,10 +633,18 @@ app.post('/api/deals/:id/seen', (req, res) => {
   res.json({ ok: true });
 });
 
-// Return all non-expired deals sorted by hotScore
-app.get('/api/deals/saved', (req, res) => {
-  const deals = pruneDeals(loadDeals());
+// Manual delete — user explicitly removed a deal
+app.delete('/api/deals/:id', (req, res) => {
+  const deals = loadDeals();
+  if (!deals[req.params.id]) return res.status(404).json({ error: 'not found' });
+  delete deals[req.params.id];
   persistDeals(deals);
+  res.json({ ok: true });
+});
+
+// Return all saved deals sorted by hotScore
+app.get('/api/deals/saved', (req, res) => {
+  const deals = loadDeals();
   const sorted = Object.values(deals).sort((a, b) => (b.hotScore ?? 0) - (a.hotScore ?? 0));
   res.json({ deals: sorted, total: sorted.length });
 });
