@@ -347,14 +347,15 @@ async function scanCategory(cat, domain, minProfit, minHearts, maxPrice, maxAgeD
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-scanBtn.addEventListener('click', async () => {
+/* ── Core scan function (shared by manual button + auto-scan) ────────── */
+async function runScan() {
   const toScan = CATEGORIES.filter(c => selectedCategories.has(c.id));
   if (toScan.length === 0) { showError('Select at least one category.'); return; }
 
   const domain     = domainSelect.value;
   const minProfit   = parseFloat(minProfitInput.value) || 8;
   const minHearts   = parseInt(minHeartsInput.value)   || 0;
-  const maxPrice    = parseFloat(maxPriceInput.value)  || 0;   // 0 = no limit
+  const maxPrice    = parseFloat(maxPriceInput.value)  || 0;
   const maxAgeDays  = parseFloat(maxAgeSelect.value)   || 0;
   const pages       = pagesSelect.value;
 
@@ -363,7 +364,6 @@ scanBtn.addEventListener('click', async () => {
   setLoading(true);
   showSkeletons(16);
 
-  // Show stats bar immediately
   statsBar.hidden = false;
   statTotal.textContent      = '0';
   statCategories.textContent = `0 / ${toScan.length}`;
@@ -375,7 +375,6 @@ scanBtn.addEventListener('click', async () => {
   let doneCount   = 0;
   let defaultCurrency = 'EUR';
 
-  // Card bucket so we can incrementally render
   const seenIds = new Set();
 
   function flushCards(currency) {
@@ -385,7 +384,6 @@ scanBtn.addEventListener('click', async () => {
       .join('');
   }
 
-  // Run categories in parallel batches of 5 — ~5x faster than sequential
   const BATCH = 5;
   for (let i = 0; i < toScan.length; i += BATCH) {
     if (abortScan) break;
@@ -411,7 +409,6 @@ scanBtn.addEventListener('click', async () => {
       }
     }));
 
-    // Update stats + cards after each batch
     statTotal.textContent      = totalScanned.toLocaleString();
     statCategories.textContent = `${doneCount} / ${toScan.length}`;
     statDeals.textContent      = allDeals.length.toLocaleString();
@@ -423,37 +420,73 @@ scanBtn.addEventListener('click', async () => {
         : `-${best.discount}% off`;
     }
 
-    if (doneCount <= BATCH) resultsGrid.innerHTML = '';   // clear skeletons on first batch
+    if (doneCount <= BATCH) resultsGrid.innerHTML = '';
     flushCards(defaultCurrency);
+
+    if (allDeals.length > 0) saveDealsToPersistent(allDeals);
   }
 
-  // Auto-save all found deals for persistence
-  if (allDeals.length > 0) saveDealsToPersistent(allDeals);
-
   setLoading(false);
+  resetCountdown();
 
   if (allDeals.length === 0) {
     resultsGrid.innerHTML = '';
     emptyState.hidden = false;
   } else {
-    // Switch from progressive grid view to categorized sections
     resultsGrid.hidden = true;
     renderSections(allDeals, defaultCurrency);
   }
-});
+}
+
+scanBtn.addEventListener('click', () => runScan());
+
+/* ── Auto-scan every 30 minutes ──────────────────────────────────────── */
+const AUTO_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+const autoLabel = document.getElementById('autoScanLabel');
+let countdownTimer = null;
+let nextScanAt = null;
+
+function formatCountdown(ms) {
+  const totalSec = Math.max(0, Math.round(ms / 1000));
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function resetCountdown() {
+  nextScanAt = Date.now() + AUTO_INTERVAL_MS;
+}
+
+function tickCountdown() {
+  if (!nextScanAt) return;
+  const remaining = nextScanAt - Date.now();
+  if (autoLabel) autoLabel.textContent = `Auto-scan in ${formatCountdown(remaining)}`;
+  if (remaining <= 0 && !scanBtn.disabled) {
+    runScan();
+  }
+}
+
+// Start countdown on page load
+resetCountdown();
+countdownTimer = setInterval(tickCountdown, 1000);
+tickCountdown();
 
 /* ── Persistent deal store ────────────────────────────────────────────── */
 
 async function saveDealsToPersistent(deals) {
   try {
-    const { saved } = await fetch('/api/deals/save', {
+    const res = await fetch('/api/deals/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(deals),
-    }).then(r => r.json());
+    });
+    if (!res.ok) { console.error('Save failed:', res.status, await res.text()); return; }
+    const { saved } = await res.json();
     savedCountEl.textContent = saved;
     savedCountEl.hidden = saved === 0;
-  } catch (_) {}
+  } catch (err) {
+    console.error('Save error:', err);
+  }
 }
 
 async function loadSavedDeals() {

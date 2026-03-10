@@ -112,6 +112,15 @@ main {
 .btn-scan:active { transform: scale(.97); }
 .btn-scan:disabled { opacity: .55; cursor: not-allowed; }
 
+/* ─── Auto-scan countdown label ────────────────────────────────────────── */
+.auto-scan-label {
+  font-size: .75rem;
+  color: var(--muted);
+  white-space: nowrap;
+  align-self: center;
+  letter-spacing: .02em;
+}
+
 /* ─── Category chips ──────────────────────────────────────────────────── */
 .category-chips {
   display: flex;
