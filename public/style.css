@@ -374,6 +374,18 @@ output {
 
 .stat.highlight .stat-value { color: var(--accent); }
 
+/* ─── Filter diagnostics ─────────────────────────────────────────────── */
+.filter-debug {
+  margin: -0.6rem 0 1.2rem;
+  padding: .75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(0, 181, 255, .08);
+  color: var(--muted);
+  font-size: .78rem;
+  line-height: 1.45;
+}
+
 /* ─── Error banner ────────────────────────────────────────────────────── */
 .error-banner {
   background: rgba(255, 77, 109, .12);
@@ -650,6 +662,14 @@ output {
   background: linear-gradient(135deg, #546e7a, #90a4ae);
   color: #fff !important;
 }
+.badge-trust-high {
+  background: linear-gradient(135deg, #1b5e20, #43a047);
+  color: #fff !important;
+}
+.badge-trust-low {
+  background: linear-gradient(135deg, #b71c1c, #e53935);
+  color: #fff !important;
+}
 
 /* ─── Premium misprice alert bar ─────────────────────────────────────── */
 .misprice-alert {
@@ -658,6 +678,44 @@ output {
   color: #ce93d8;
   font-size: .7rem;
   font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 5px;
+  margin: 4px 0 2px;
+  letter-spacing: .02em;
+}
+
+.opportunity-alert {
+  background: linear-gradient(135deg, #0f766e22, #14b8a622);
+  border: 1px solid #2dd4bf;
+  color: #99f6e4;
+  font-size: .7rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 5px;
+  margin: 4px 0 2px;
+  letter-spacing: .02em;
+}
+
+/* ─── Repost / not-selling warning ───────────────────────────────────── */
+.repost-warning {
+  background: linear-gradient(135deg, #7f1d1d22, #b91c1c22);
+  border: 1px solid #f87171;
+  color: #f87171;
+  font-size: .7rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 5px;
+  margin: 4px 0 2px;
+  letter-spacing: .02em;
+}
+
+/* ─── Condition discount note ────────────────────────────────────────── */
+.cond-discount-note {
+  background: linear-gradient(135deg, #1e293b, #334155);
+  border: 1px solid #64748b;
+  color: #94a3b8;
+  font-size: .68rem;
+  font-weight: 600;
   padding: 3px 8px;
   border-radius: 5px;
   margin: 4px 0 2px;
@@ -894,6 +952,22 @@ footer {
 .price-val   { font-size: .86rem; font-weight: 700; color: var(--text); }
 .price-resale { color: #90caf9; }
 .price-profit { color: var(--accent); font-size: .94rem; }
+
+/* ─── eBay sold-price row ────────────────────────────────────────── */
+.ebay-row {
+  margin: .3rem 0 .1rem;
+}
+.ebay-chip {
+  display: inline-block;
+  font-size: .68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #0d2d45;
+  border: 1px solid #1a5276;
+  color: #5dade2;
+  white-space: nowrap;
+}
 
 .card-info-row {
   display: flex;

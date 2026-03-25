@@ -26,10 +26,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             Auto Deal Scanner
           </div>
-          <p class="scan-desc">Scans <strong>30 categories</strong> across footwear, luxury, streetwear, gaming, tech &amp; collectibles. Only shows items where the buy price + fees still leaves a real profit.</p>
+          <p class="scan-desc">Scans <strong>Ralph Lauren only</strong>. Each Ralph Lauren search re-starts the 30 minute background auto-scan cycle, so future scans follow your search instead of homepage load.</p>
         </div>
         <button type="button" class="btn-scan" id="scanBtn">
-          <span class="btn-text">Scan for Deals</span>
+          <span class="btn-text">Search Ralph Lauren</span>
           <span class="btn-spinner" hidden>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
           </span>
@@ -60,7 +60,7 @@
           <span>Min profit after fees</span>
           <div class="profit-input-wrap">
             <span class="profit-prefix">€</span>
-            <input type="number" id="minProfitInput" min="1" max="500" value="8" step="1" />
+            <input type="number" id="minProfitInput" min="1" max="500" value="2" step="1" />
           </div>
         </label>
 
@@ -157,6 +157,7 @@
         <span class="stat-value" id="statBest">—</span>
       </div>
     </div>
+    <div id="filterDebug" class="filter-debug" hidden></div>
 
     <!-- Error banner -->
     <div id="errorBanner" class="error-banner" hidden></div>

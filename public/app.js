@@ -1,30 +1,17 @@
 /* ── Categories to auto-scan ─────────────────────────────────────────── */
 const CATEGORIES = [
-  // Footwear — high resale demand
-  { id: 'nike',       label: 'Nike Sneakers',   q: 'Nike sneakers',       group: 'Footwear'      },
-  { id: 'jordan',     label: 'Air Jordan',      q: 'Air Jordan',          group: 'Footwear'      },
-  { id: 'adidas',     label: 'Adidas',          q: 'Adidas',              group: 'Footwear'      },
-  { id: 'newbalance', label: 'New Balance',     q: 'New Balance',         group: 'Footwear'      },
-  { id: 'timberland', label: 'Timberland',      q: 'Timberland',          group: 'Footwear'      },
-  { id: 'drmartens',  label: 'Dr. Martens',     q: 'Dr Martens',          group: 'Footwear'      },
-  // Luxury & premium
-  { id: 'gucci',      label: 'Gucci',           q: 'Gucci',               group: 'Luxury'        },
-  { id: 'lv',         label: 'Louis Vuitton',   q: 'Louis Vuitton',       group: 'Luxury'        },
-  { id: 'burberry',   label: 'Burberry',        q: 'Burberry',            group: 'Luxury'        },
-  { id: 'moncler',    label: 'Moncler',         q: 'Moncler',             group: 'Luxury'        },
-  { id: 'stone',      label: 'Stone Island',    q: 'Stone Island',        group: 'Luxury'        },
-  // Streetwear
-  { id: 'supreme',    label: 'Supreme',         q: 'Supreme',             group: 'Streetwear'    },
-  { id: 'offwhite',   label: 'Off-White',       q: 'Off-White',           group: 'Streetwear'    },
-  { id: 'palace',     label: 'Palace',          q: 'Palace skateboards',  group: 'Streetwear'    },
-  { id: 'stussy',     label: 'Stüssy',          q: 'Stussy',              group: 'Streetwear'    },
-  { id: 'northface',  label: 'North Face',      q: 'The North Face',      group: 'Streetwear'    },
-  // Sports
-  { id: 'football',   label: 'Football Shirt',  q: 'football shirt',      group: 'Sports'        },
-  { id: 'patagonia',  label: 'Patagonia',       q: 'Patagonia',           group: 'Sports'        },
-  // Watches
-  { id: 'seiko',      label: 'Seiko Watch',     q: 'Seiko watch',         group: 'Watches'       },
-  { id: 'casio',      label: 'Casio Watch',     q: 'Casio watch',         group: 'Watches'       },
+  { id: 'rl_cable',      label: 'RL Cable Knit',    q: 'Ralph Lauren cable knit jumper', group: 'Ralph Lauren Knitwear' },
+  { id: 'rl_vneck',      label: 'RL V-Neck',        q: 'Ralph Lauren v neck sweater',     group: 'Ralph Lauren Knitwear' },
+  { id: 'rl_crewneck',   label: 'RL Crew Neck',     q: 'Ralph Lauren crew neck jumper',   group: 'Ralph Lauren Knitwear' },
+  { id: 'rl_chunky',     label: 'RL Chunky Knit',   q: 'Ralph Lauren chunky knit jumper', group: 'Ralph Lauren Knitwear' },
+  { id: 'rl_wool',       label: 'RL Wool Sweater',  q: 'Ralph Lauren wool sweater',       group: 'Ralph Lauren Knitwear' },
+  { id: 'rl_merino',     label: 'RL Merino',        q: 'Ralph Lauren merino sweater',     group: 'Ralph Lauren Knitwear' },
+  { id: 'rl_quarterzip', label: 'RL Quarter Zip',   q: 'Ralph Lauren quarter zip knit',   group: 'Ralph Lauren Knitwear' },
+  { id: 'rl_fairisle',   label: 'RL Fair Isle',     q: 'Ralph Lauren fair isle jumper',   group: 'Ralph Lauren Knitwear' },
+  { id: 'rl_heavy',      label: 'RL Heavy Knit',    q: 'Ralph Lauren heavy knit jumper',  group: 'Ralph Lauren Knitwear' },
+  { id: 'rl_knit',       label: 'RL Knit Jumper',   q: 'Ralph Lauren knit jumper',        group: 'Ralph Lauren Knitwear' },
+  { id: 'rl_sweater',    label: 'RL Sweater',       q: 'Polo Ralph Lauren sweater',       group: 'Ralph Lauren Knitwear' },
+  { id: 'rl_jumper',     label: 'RL Jumper',        q: 'Polo Ralph Lauren jumper',        group: 'Ralph Lauren Knitwear' },
 ];
 
 /* ── DOM refs ─────────────────────────────────────────────────────────── */
@@ -43,6 +30,7 @@ const statTotal      = document.getElementById('statTotal');
 const statCategories = document.getElementById('statCategories');
 const statDeals      = document.getElementById('statDeals');
 const statBest       = document.getElementById('statBest');
+const filterDebug    = document.getElementById('filterDebug');
 const errorBanner    = document.getElementById('errorBanner');
 const emptyState     = document.getElementById('emptyState');
 const resultsGrid     = document.getElementById('resultsGrid');
@@ -142,6 +130,8 @@ function clearUI() {
   errorBanner.hidden = true;
   emptyState.hidden = true;
   statsBar.hidden = true;
+  filterDebug.hidden = true;
+  filterDebug.textContent = '';
   resultsGrid.innerHTML = '';
   resultsGrid.hidden = false;
   resultSections.hidden = true;
@@ -150,6 +140,43 @@ function clearUI() {
     const el = document.getElementById('chip-' + c.id);
     if (el) { el.classList.remove('done', 'scanning'); }
   });
+}
+
+function createEmptyFilterStats() {
+  return {
+    totalFetched: 0,
+    pricedItems: 0,
+    filteredHearts: 0,
+    filteredMaxPrice: 0,
+    filteredAge: 0,
+    filteredMoncler: 0,
+    filteredSellerTrust: 0,
+    filteredNoMarketRef: 0,
+    filteredLowSpread: 0,
+    passedBySpread: 0,
+    passedByKnitFallback: 0,
+    passedByOpportunityFallback: 0,
+    passedTotal: 0,
+  };
+}
+
+function mergeFilterStats(total, part) {
+  if (!part) return total;
+  for (const [k, v] of Object.entries(part)) {
+    if (typeof v === 'number') total[k] = (total[k] || 0) + v;
+  }
+  return total;
+}
+
+function renderFilterDebug(stats) {
+  if (!stats) { filterDebug.hidden = true; return; }
+  filterDebug.hidden = false;
+  filterDebug.textContent = [
+    `Diagnostics: fetched ${stats.totalFetched}, priced ${stats.pricedItems}, passed ${stats.passedTotal}`,
+    `Dropped by profit/spread ${stats.filteredLowSpread}, seller trust ${stats.filteredSellerTrust}, no market ref ${stats.filteredNoMarketRef}`,
+    `Dropped by hearts ${stats.filteredHearts}, age ${stats.filteredAge}, max price ${stats.filteredMaxPrice}, moncler gate ${stats.filteredMoncler}`,
+    `Pass source: strict spread ${stats.passedBySpread}, knit fallback ${stats.passedByKnitFallback}, opportunity fallback ${stats.passedByOpportunityFallback}`,
+  ].join(' | ');
 }
 
 /* ── Skeleton placeholders while loading ──────────────────────────────── */
@@ -175,7 +202,17 @@ function renderCard(item, currency, rank, savedMeta = null) {
 
   const brandBadge = item.brand     ? `<span class="badge">${escHtml(item.brand)}</span>`     : '';
   const sizeBadge  = item.size      ? `<span class="badge">${escHtml(item.size)}</span>`      : '';
-  const condBadge  = item.condition ? `<span class="badge">${escHtml(item.condition)}</span>` : '';
+
+  // Human-readable condition label
+  const COND_LABELS = {
+    'new_with_tags':    'New + tags',
+    'new_without_tags': 'Unworn',
+    'very_good':        'Very good',
+    'good':             'Good',
+    'satisfactory':     'Fair',
+  };
+  const condLabel = COND_LABELS[item.condition] ?? item.condition;
+  const condBadge = condLabel ? `<span class="badge">${escHtml(condLabel)}</span>` : '';
   const heartsBadge = item.hearts > 0
     ? `<span class="badge badge-hearts"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>${item.hearts}</span>`
     : '';
@@ -197,11 +234,32 @@ function renderCard(item, currency, rank, savedMeta = null) {
     ? `<div class="misprice-alert">💎 Premium brand at fast-fashion price</div>`
     : '';
 
+  const opportunityBadge = item.sourceMode === 'opportunity'
+    ? `<div class="opportunity-alert">🧶 Knitwear sourcing pick — surfaced on discount/value, not strict spread</div>`
+    : '';
+
   // Size demand badge
   const sizeDemandBadge = item.sizeDemand >= 2
     ? `<span class="badge badge-size-hot" title="Best resale size">📐 Best size</span>`
     : item.sizeDemand >= 1
     ? `<span class="badge badge-size-ok" title="Good resale size">📐 Good size</span>`
+    : '';
+
+  // Seller trust badge
+  const sellerTrustBadge = item.sellerTrust === 'high'
+    ? `<span class="badge badge-trust-high" title="Trusted seller (${item.sellerRep}% positive, ${item.sellerSales} sales)">✓ Trusted</span>`
+    : item.sellerTrust === 'low'
+    ? `<span class="badge badge-trust-low" title="New/unverified seller (${item.sellerRep}% positive, ${item.sellerSales} sales)">⚠ New seller</span>`
+    : '';
+
+  // Repost warning
+  const repostWarning = item.isRepost
+    ? `<div class="repost-warning">⚠ Not selling — same seller listed this brand multiple times</div>`
+    : '';
+
+  // Condition discount note
+  const condDiscountNote = (item.condMultiplier != null && item.condMultiplier < 1)
+    ? `<div class="cond-discount-note" title="Profit adjusted for ${condLabel} condition (×${item.condMultiplier})">−${Math.round((1 - item.condMultiplier) * 100)}% condition discount applied</div>`
     : '';
 
   // Saved deal expiry line (only shown in Saved Deals panel)
@@ -237,7 +295,9 @@ function renderCard(item, currency, rank, savedMeta = null) {
   const rankStyle  = rank <= 3 ? `background:${rankColors[rank - 1]};color:#111` : '';
   const rankBadge  = `<div class="rank-badge" style="${rankStyle}">#${rank}</div>`;
 
-  const profitStr = item.estimatedProfit != null ? fmt(item.estimatedProfit, currency) : '';
+  const profitStr = (item.conditionAdjustedProfit ?? item.estimatedProfit) != null
+    ? fmt(item.conditionAdjustedProfit ?? item.estimatedProfit, currency)
+    : '';
 
   // Hidden gem: old listing (7+ days) that is still heavily discounted — nobody noticed
   const hiddenGemBadge = (item.discount >= 50 && ageDays >= 7)
@@ -246,7 +306,7 @@ function renderCard(item, currency, rank, savedMeta = null) {
 
   // Deal score: Profit×10 + Discount%×3 + Brand×5 + Freshness bonus (max 60 for brand new)
   const displayScore = Math.max(0, Math.round(
-    (item.estimatedProfit ?? 0) * 10 +
+    (item.conditionAdjustedProfit ?? item.estimatedProfit ?? 0) * 10 +
     (item.discount ?? 0) * 3 +
     (item.brandBoost ?? 0) * 5 +
     Math.max(0, 30 - ageDays) * 2
@@ -261,8 +321,8 @@ function renderCard(item, currency, rank, savedMeta = null) {
       </div>
       <div class="card-body">
         <div class="card-title">${escHtml(item.title)}</div>
-        <div class="card-meta">${brandBadge}${sizeBadge}${condBadge}${heartsBadge}${brandBoostBadge}${hiddenBrandBadge}${velBadge}${sizeDemandBadge}</div>
-        ${mispriceBadge}${hiddenGemBadge}
+        <div class="card-meta">${brandBadge}${sizeBadge}${condBadge}${heartsBadge}${brandBoostBadge}${hiddenBrandBadge}${velBadge}${sizeDemandBadge}${sellerTrustBadge}</div>
+        ${mispriceBadge}${opportunityBadge}${hiddenGemBadge}${repostWarning}${condDiscountNote}
         <div class="card-price-grid">
           <div class="price-col">
             <div class="price-label">Buy price</div>
@@ -277,6 +337,10 @@ function renderCard(item, currency, rank, savedMeta = null) {
             <div class="price-val price-profit">${profitStr || '&mdash;'}</div>
           </div>
         </div>
+        ${item.ebaySoldMean != null ? `
+        <div class="ebay-row">
+          <span class="ebay-chip">&#x1F6CD; eBay UK avg: ${fmt(item.ebaySoldMean, 'GBP')} (${item.ebaySoldCount} sold)${item.ebayProfit != null ? ` &rarr; ~${fmt(item.ebayProfit, 'GBP')} profit` : ''}</span>
+        </div>` : ''}
         <div class="card-info-row">
           <span class="info-chip">-${item.discount}% vs avg</span>
           <span class="info-chip">&#9829; ${item.hearts ?? 0}</span>
@@ -353,7 +417,7 @@ async function runScan() {
   if (toScan.length === 0) { showError('Select at least one category.'); return; }
 
   const domain     = domainSelect.value;
-  const minProfit   = parseFloat(minProfitInput.value) || 8;
+  const minProfit   = parseFloat(minProfitInput.value) || 2;
   const minHearts   = parseInt(minHeartsInput.value)   || 0;
   const maxPrice    = parseFloat(maxPriceInput.value)  || 0;
   const maxAgeDays  = parseFloat(maxAgeSelect.value)   || 0;
@@ -374,6 +438,7 @@ async function runScan() {
   let totalScanned = 0;
   let doneCount   = 0;
   let defaultCurrency = 'EUR';
+  const aggregateFilterStats = createEmptyFilterStats();
 
   const seenIds = new Set();
 
@@ -384,67 +449,92 @@ async function runScan() {
       .join('');
   }
 
-  const BATCH = 5;
-  for (let i = 0; i < toScan.length; i += BATCH) {
-    if (abortScan) break;
-    const batch = toScan.slice(i, i + BATCH);
+  try {
+    const BATCH = 5;
+    for (let i = 0; i < toScan.length; i += BATCH) {
+      if (abortScan) break;
+      const batch = toScan.slice(i, i + BATCH);
 
-    await Promise.all(batch.map(async cat => {
-      try {
-        const data = await scanCategory(cat, domain, minProfit, minHearts, maxPrice, maxAgeDays, pages);
-        defaultCurrency = data.currency || defaultCurrency;
-        totalScanned += data.totalFetched || 0;
-        doneCount++;
+      await Promise.all(batch.map(async cat => {
+        try {
+          const data = await scanCategory(cat, domain, minProfit, minHearts, maxPrice, maxAgeDays, pages);
+          defaultCurrency = data.currency || defaultCurrency;
+          totalScanned += data.totalFetched || 0;
+          mergeFilterStats(aggregateFilterStats, data.filterStats);
+          doneCount++;
 
-        for (const item of (data.items || [])) {
-          if (!seenIds.has(item.id)) {
-            seenIds.add(item.id);
-            allDeals.push(item);
+          for (const item of (data.items || [])) {
+            if (!seenIds.has(item.id)) {
+              seenIds.add(item.id);
+              allDeals.push(item);
+            }
           }
+        } catch (err) {
+          const chip = document.getElementById('chip-' + cat.id);
+          if (chip) { chip.classList.remove('scanning'); chip.classList.add('done'); }
+          doneCount++;
         }
-      } catch (err) {
-        const chip = document.getElementById('chip-' + cat.id);
-        if (chip) { chip.classList.remove('scanning'); chip.classList.add('done'); }
-        doneCount++;
+      }));
+
+      statTotal.textContent      = totalScanned.toLocaleString();
+      statCategories.textContent = `${doneCount} / ${toScan.length}`;
+      statDeals.textContent      = allDeals.length.toLocaleString();
+      renderFilterDebug(aggregateFilterStats);
+
+      if (allDeals.length > 0) {
+        const best = allDeals.reduce((a, b) => (b.hotScore ?? 0) > (a.hotScore ?? 0) ? b : a);
+        statBest.textContent = best.estimatedProfit != null
+          ? `~${fmt(best.estimatedProfit, defaultCurrency)} profit ♥${best.hearts ?? 0}`
+          : `-${best.discount}% off`;
       }
-    }));
 
-    statTotal.textContent      = totalScanned.toLocaleString();
-    statCategories.textContent = `${doneCount} / ${toScan.length}`;
-    statDeals.textContent      = allDeals.length.toLocaleString();
+      if (doneCount <= BATCH) resultsGrid.innerHTML = '';
+      flushCards(defaultCurrency);
 
-    if (allDeals.length > 0) {
-      const best = allDeals.reduce((a, b) => (b.hotScore ?? 0) > (a.hotScore ?? 0) ? b : a);
-      statBest.textContent = best.estimatedProfit != null
-        ? `~${fmt(best.estimatedProfit, defaultCurrency)} profit ♥${best.hearts ?? 0}`
-        : `-${best.discount}% off`;
+      if (allDeals.length > 0) await saveDealsToPersistent(allDeals);
     }
 
-    if (doneCount <= BATCH) resultsGrid.innerHTML = '';
-    flushCards(defaultCurrency);
+    // Refresh saved panel to reflect newly saved deals (keeps it in sync with leaderboard)
+    if (allDeals.length > 0) {
+      try {
+        const { deals: saved } = await fetch('/api/deals/saved').then(r => r.json());
+        if (saved && saved.length > 0) {
+          savedCountEl.textContent = saved.length;
+          savedCountEl.hidden = false;
+          renderDailySummary(saved);
+          if (!savedPanel.hidden) {
+            const currency = saved[0]?.currency || 'EUR';
+            savedGrid.innerHTML = saved.map((item, i) =>
+              `<div class="saved-card-wrap">${renderCard(item, currency, i + 1)}<button class="delete-deal-btn" data-delete-id="${escHtml(String(item.id))}" title="Remove from saved">&#x2715;</button></div>`
+            ).join('');
+            savedEmpty.hidden = true;
+          }
+        }
+      } catch (_) {}
+    }
 
-    if (allDeals.length > 0) saveDealsToPersistent(allDeals);
-  }
+    try {
+      await fetch('/api/scan/rearm', { method: 'POST' });
+      await pollScanStatus();
+    } catch (_) {}
 
-  setLoading(false);
-  resetCountdown();
-
-  if (allDeals.length === 0) {
-    resultsGrid.innerHTML = '';
-    emptyState.hidden = false;
-  } else {
-    resultsGrid.hidden = true;
-    renderSections(allDeals, defaultCurrency);
+    if (allDeals.length === 0) {
+      resultsGrid.innerHTML = '';
+      emptyState.hidden = false;
+    } else {
+      resultsGrid.hidden = true;
+      renderSections(allDeals, defaultCurrency);
+    }
+  } finally {
+    // Always re-enable the button even if an error occurred
+    setLoading(false);
   }
 }
 
 scanBtn.addEventListener('click', () => runScan());
 
-/* ── Auto-scan every 30 minutes ──────────────────────────────────────── */
-const AUTO_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+/* ── Auto-scan countdown — driven by server schedule ─────────────────── */
 const autoLabel = document.getElementById('autoScanLabel');
-let countdownTimer = null;
-let nextScanAt = null;
 
 function formatCountdown(ms) {
   const totalSec = Math.max(0, Math.round(ms / 1000));
@@ -453,23 +543,48 @@ function formatCountdown(ms) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-function resetCountdown() {
-  nextScanAt = Date.now() + AUTO_INTERVAL_MS;
-}
+// Local target timestamp synced from server every 10 s
+let _nextScanTarget = null;
+let _lastScanSeen   = null;
 
-function tickCountdown() {
-  if (!nextScanAt) return;
-  const remaining = nextScanAt - Date.now();
-  if (autoLabel) autoLabel.textContent = `Auto-scan in ${formatCountdown(remaining)}`;
-  if (remaining <= 0 && !scanBtn.disabled) {
-    runScan();
+// Tick every second to keep the label smooth
+setInterval(() => {
+  if (!autoLabel) return;
+  if (_nextScanTarget == null) { autoLabel.textContent = 'Auto-scan in …'; return; }
+  const remaining = _nextScanTarget - Date.now();
+  if (remaining <= 0) {
+    autoLabel.textContent = 'Auto-scan running…';
+  } else {
+    autoLabel.textContent = `Next auto-scan in ${formatCountdown(remaining)}`;
   }
-}
+}, 1000);
 
-// Start countdown on page load
-resetCountdown();
-countdownTimer = setInterval(tickCountdown, 1000);
-tickCountdown();
+// Poll server every 10 s to sync target time and detect completed scans
+async function pollScanStatus() {
+  try {
+    const st = await fetch('/api/scan/status').then(r => r.json());
+    if (st.running) {
+      _nextScanTarget = null; // show "running…" until next poll
+    } else if (st.nextScanMs != null) {
+      _nextScanTarget = Date.now() + st.nextScanMs; // re-sync local target
+    }
+    // If the server just finished a scan, refresh saved count + summary
+    if (st.lastScan && st.lastScan !== _lastScanSeen) {
+      _lastScanSeen = st.lastScan;
+      try {
+        const { deals } = await fetch('/api/deals/saved').then(r => r.json());
+        if (deals && deals.length > 0) {
+          savedCountEl.textContent = deals.length;
+          savedCountEl.hidden = false;
+          renderDailySummary(deals);
+          if (!savedPanel.hidden) loadSavedDeals();
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+setInterval(pollScanStatus, 10_000);
+pollScanStatus();
 
 /* ── Persistent deal store ────────────────────────────────────────────── */
 
